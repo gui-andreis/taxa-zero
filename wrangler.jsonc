@@ -1,0 +1,21 @@
+// Configuração da Cloudflare. Você normalmente NÃO precisa mexer aqui:
+// o botão "Deploy to Cloudflare" cria o banco (D1) e o armazenamento (R2) sozinho.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "taxa-zero",
+  "main": "src/index.tsx",
+  "compatibility_date": "2026-09-01",
+  "observability": { "enabled": true },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "taxa-zero-db"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "BUCKET",
+      "bucket_name": "taxa-zero-arquivos"
+    }
+  ]
+}

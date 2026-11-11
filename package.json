@@ -1,0 +1,24 @@
+{
+  "name": "taxa-zero",
+  "version": "0.1.0",
+  "description": "Plataforma open source para vender cursos online com zero comissão. Pix direto na sua conta, cartão via Mercado Pago, área de membros e dashboard. Roda grátis na Cloudflare.",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/unit.test.ts",
+    "demo": "node scripts/build-demo.mjs"
+  },
+  "dependencies": {
+    "hono": "^4.13.18",
+    "uqr": "^0.1.3"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261110.1",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.160.1"
+  }
+}

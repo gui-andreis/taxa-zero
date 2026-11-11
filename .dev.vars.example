@@ -1,0 +1,3 @@
+# Código secreto pedido na primeira vez que você abrir /admin.
+# Invente qualquer frase (ex.: "minha-loja-2026-abacaxi"). Só quem sabe esse código consegue criar o administrador.
+SETUP_CODE=troque-por-um-codigo-so-seu
