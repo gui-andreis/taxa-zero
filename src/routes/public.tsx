@@ -91,7 +91,7 @@ app.get('/c/:slug', async (c) => {
       <div class="wrap sales">
         <div class="stack">
           <div>
-            <span class="badge accent">Curso online</span>
+            <span class="eyebrow">Curso online</span>
             <h1 style="margin-top:14px">{course.title}</h1>
             <p style="font-size:1.2rem" class="muted">
               {course.subtitle}

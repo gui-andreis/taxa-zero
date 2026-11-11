@@ -1,6 +1,7 @@
 import { Hono, type Context } from 'hono'
 import type { AppEnv, Course, Lesson, Module, Order } from '../env'
-import { AdminLayout, Flash, Layout } from '../views/layout'
+import { AdminLayout, Flash, Layout, themeOf } from '../views/layout'
+import { isTheme, THEMES } from '../views/styles'
 import { brl, dateBR, DAY, isEmail, isHexColor, METHOD_LABEL, now, parseBRL, slugify, STATUS_LABEL } from '../lib/format'
 import { hashPassword, randomId, safeEqual, verifyPassword } from '../lib/crypto'
 import { createSession, destroySession, tooManyAttempts } from '../lib/auth'
@@ -1078,15 +1079,9 @@ app.get('/configuracoes', (c) => {
       <form method="post" class="stack" style="max-width:820px">
         <fieldset>
           <legend>Sua loja</legend>
-          <div class="grid g2">
-            <div class="field">
-              <label for="store_name">Nome da loja</label>
-              <input id="store_name" name="store_name" required value={s.store_name} />
-            </div>
-            <div class="field">
-              <label for="accent_color">Cor principal</label>
-              <input id="accent_color" name="accent_color" type="color" value={s.accent_color} />
-            </div>
+          <div class="field">
+            <label for="store_name">Nome da loja</label>
+            <input id="store_name" name="store_name" required value={s.store_name} />
           </div>
           <div class="field">
             <label for="store_tagline">Frase da página inicial</label>
@@ -1117,6 +1112,34 @@ app.get('/configuracoes', (c) => {
             <label for="footer_text">Texto do rodapé</label>
             <input id="footer_text" name="footer_text" value={s.footer_text} placeholder="Ex.: CNPJ 00.000.000/0001-00" />
           </div>
+        </fieldset>
+
+        <fieldset id="aparencia">
+          <legend>Aparência</legend>
+          <p class="small muted">Escolha o visual da loja, da área do aluno e do painel. Dá para trocar quando quiser.</p>
+          <div class="themes">
+            {THEMES.map((t) => (
+              <label class="theme-opt">
+                <input type="radio" name="theme" value={t.id} checked={themeOf(s) === t.id} />
+                <span class="sw">
+                  {t.swatch.map((c) => (
+                    <i style={`background:${c}`} />
+                  ))}
+                </span>
+                {t.name}
+                {t.id === 'saas' && <span class="badge accent" style="margin-left:6px">padrão</span>}
+                <span class="d">{t.desc}</span>
+              </label>
+            ))}
+          </div>
+          <div class="row" style="margin-top:18px">
+            <label class="check" style="margin:0">
+              <input type="checkbox" name="accent_custom" value="1" checked={s.accent_custom === '1'} />
+              <span>Usar minha própria cor de destaque</span>
+            </label>
+            <input id="accent_color" name="accent_color" type="color" value={s.accent_color} aria-label="Cor de destaque" />
+          </div>
+          <div class="hint">Desmarcado, cada tema usa a cor dele.</div>
         </fieldset>
 
         <fieldset id="pagamentos">
@@ -1246,7 +1269,9 @@ app.post('/configuracoes', async (c) => {
   const values: Record<string, string> = {
     store_name: str('store_name') || 'Minha Escola',
     store_tagline: str('store_tagline'),
-    accent_color: isHexColor(str('accent_color')) ? str('accent_color') : '#6d4aff',
+    theme: isTheme(str('theme')) ? str('theme') : 'saas',
+    accent_custom: f.accent_custom === '1' ? '1' : '0',
+    accent_color: isHexColor(str('accent_color')) ? str('accent_color') : '#635bff',
     seller_email: str('seller_email'),
     support_contact: str('support_contact'),
     footer_text: str('footer_text'),

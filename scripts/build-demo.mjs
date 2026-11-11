@@ -297,6 +297,7 @@ async function main() {
   const banner = (page) => `
 <div class="demo-bar"><div class="demo-in">
   <span><strong>Demonstração</strong> do Taxa Zero: dados fictícios, nada é cobrado.</span>
+  <label class="demo-theme">Tema <select aria-label="Tema da demo"><option value="saas">SaaS moderno</option><option value="editorial">Editorial</option><option value="cyber">Cyber</option><option value="suico">Suíço</option><option value="minimo">Mínimo</option></select></label>
   <nav><a href="${BASE}index.html"${!page.startsWith('/admin') && !page.startsWith('/aluno') ? ' class="on"' : ''}>Loja</a><a href="${BASE}aluno.html"${page.startsWith('/aluno') || page.startsWith('/pedido') ? ' class="on"' : ''}>Área do aluno</a><a href="${BASE}admin.html"${page.startsWith('/admin') ? ' class="on"' : ''}>Painel do vendedor</a><a href="${REPO}" class="gh">GitHub ↗</a></nav>
 </div></div>`
 
@@ -317,6 +318,7 @@ async function main() {
       return `<form method="post" data-demo-next="${next ? link(next, p) : ''}"`
     })
     html = html.replace(/ data-poll="[^"]*"/g, '').replace(/ (required|minlength="\d+")(="")?/g, '')
+    html = html.replace(/<link rel="stylesheet" href="https:\/\/fonts\.googleapis\.com[^>]*>/, `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?${ALL_FONTS}&amp;display=swap"/>`)
     html = html.replace('</head>', `<link rel="stylesheet" href="${BASE}assets/demo.css"/><script src="${BASE}assets/demo.js"></script></head>`)
     html = html.replace(/<body>/, `<body>${banner(p)}`)
     const out = join(OUT, fileFor(p))
@@ -333,6 +335,9 @@ async function main() {
   console.log(`Demo gerada em ./${OUT} (${pages.length} páginas)`)
 }
 
+const ALL_FONTS =
+  'family=Inter:wght@300;400;500;600;700;800&amp;family=Inter+Tight:wght@600;800;900&amp;family=JetBrains+Mono:wght@400;500;700&amp;family=Source+Serif+4:opsz,ital,wght@8..60,0,400;8..60,0,600;8..60,1,400'
+
 const DEMO_CSS = `
 .demo-bar{background:#15132b;color:#e9e6ff;font-size:.86rem;position:relative;z-index:20}
 .demo-in{max-width:1120px;margin:0 auto;padding:9px 20px;display:flex;gap:10px 18px;align-items:center;justify-content:space-between;flex-wrap:wrap}
@@ -342,12 +347,24 @@ const DEMO_CSS = `
 .demo-bar a.on{background:#6d4aff;color:#fff}
 .demo-bar a.gh{color:#fff}
 .admin .side{top:0}
+.demo-theme{display:flex;gap:8px;align-items:center;color:#9d97c9;font-weight:500;margin:0;font-size:.86rem}
+.demo-theme select{background:#262246;color:#fff;border:1px solid #3d3870;border-radius:7px;padding:4px 8px;font:inherit;width:auto}
 .demo-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:#15132b;color:#fff;padding:12px 18px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.3);font-size:.92rem;opacity:0;transition:.25s;z-index:99;max-width:calc(100% - 32px);text-align:center}
 .demo-toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 `
 
 const DEMO_JS = `
 (function(){
+  var KEY='tz-demo-tema', root=document.documentElement;
+  try{var saved=localStorage.getItem(KEY); if(saved) root.setAttribute('data-theme',saved)}catch(e){}
+  function setTheme(t){root.setAttribute('data-theme',t);try{localStorage.setItem(KEY,t)}catch(e){}
+    document.querySelectorAll('.demo-theme select').forEach(function(s){s.value=t});
+    document.querySelectorAll('input[name=theme]').forEach(function(r){r.checked=r.value===t})}
+  document.addEventListener('DOMContentLoaded',function(){
+    var cur=root.getAttribute('data-theme'); setTheme(cur);
+    document.querySelectorAll('.demo-theme select').forEach(function(s){s.addEventListener('change',function(){setTheme(s.value)})});
+    document.querySelectorAll('input[name=theme]').forEach(function(r){r.addEventListener('change',function(){setTheme(r.value)})});
+  });
   function toast(msg){
     var t=document.querySelector('.demo-toast');
     if(!t){t=document.createElement('div');t.className='demo-toast';document.body.appendChild(t)}

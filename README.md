@@ -20,7 +20,7 @@ A demo é a interface **real** do Taxa Zero, gerada a partir do código deste re
 
 | | |
 |---|---|
-| 🛍️ [**Loja**](https://gui-andreis.github.io/taxa-zero/) | vitrine, página de vendas, checkout e tela do Pix |
+| 🛍️ [**Loja**](https://gui-andreis.github.io/taxa-zero/) | vitrine, página de vendas, checkout e tela do Pix. Troque o **tema** na barra do topo |
 | 🎓 [**Área do aluno**](https://gui-andreis.github.io/taxa-zero/aluno.html) | meus cursos, player com módulos e aulas, botão de reembolso |
 | 📊 [**Painel do vendedor**](https://gui-andreis.github.io/taxa-zero/admin.html) | dashboard, pedidos, confirmar Pix, cursos, aulas e configurações |
 
@@ -32,7 +32,7 @@ A demo é a interface **real** do Taxa Zero, gerada a partir do código deste re
 - 📊 **Dashboard** com faturamento, vendas, alunos e quanto você economizou.
 - ↺ **Garantia de 7 dias com botão de reembolso** (como manda o Código de Defesa do Consumidor).
 - ✉️ **E-mails automáticos** de compra confirmada, aviso de venda e recuperação de senha.
-- 🎨 **Página de vendas bonita**, com a sua cor e o seu logo. Modo claro e escuro automáticos.
+- 🎨 **5 temas prontos**: SaaS moderno (padrão), Editorial, Cyber, Suíço e Mínimo. Troque em Configurações e use a sua cor e o seu logo.
 - ☁️ **Roda grátis na Cloudflare** e é configurado inteiro por um painel. Você não precisa saber programar.
 
 ---

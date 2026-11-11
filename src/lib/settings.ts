@@ -4,7 +4,9 @@ import type { Settings } from '../env'
 export const DEFAULT_SETTINGS: Settings = {
   store_name: 'Minha Escola',
   store_tagline: 'Cursos online direto de quem faz.',
-  accent_color: '#6d4aff',
+  theme: 'saas',
+  accent_custom: '0',
+  accent_color: '#635bff',
   logo_key: '',
   seller_email: '',
   support_contact: '',

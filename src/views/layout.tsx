@@ -1,10 +1,18 @@
 import type { Child } from 'hono/jsx'
 import type { Settings, Student } from '../env'
 import { isHexColor } from '../lib/format'
+import { isTheme, THEME_FONTS, THEMES, type ThemeId } from './styles'
 
+export const themeOf = (s: Settings): ThemeId => (isTheme(s.theme) ? s.theme : 'saas')
+
+/** Cor própria do vendedor (opcional). Sem ela, cada tema usa a cor dele. */
 function themeVars(s: Settings) {
-  const accent = isHexColor(s.accent_color) ? s.accent_color : '#6d4aff'
-  return `:root{--accent:${accent}}`
+  return s.accent_custom === '1' && isHexColor(s.accent_color) ? `html[data-theme]{--accent:${s.accent_color}}` : ''
+}
+
+function themeColor(s: Settings) {
+  if (s.accent_custom === '1' && isHexColor(s.accent_color)) return s.accent_color
+  return THEMES.find((t) => t.id === themeOf(s))!.swatch[1]
 }
 
 function Head({ title, s, description }: { title: string; s: Settings; description?: string }) {
@@ -14,12 +22,12 @@ function Head({ title, s, description }: { title: string; s: Settings; descripti
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <title>{title}</title>
       {description && <meta name="description" content={description} />}
-      <meta name="theme-color" content={s.accent_color} />
+      <meta name="theme-color" content={themeColor(s)} />
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
+      <link rel="stylesheet" href={`https://fonts.googleapis.com/css2?${THEME_FONTS[themeOf(s)]}&display=swap`} />
       <link rel="stylesheet" href="/assets/app.css" />
-      <style>{themeVars(s)}</style>
+      {themeVars(s) && <style>{themeVars(s)}</style>}
       {s.logo_key && <link rel="icon" href={`/media/p/${s.logo_key}`} />}
       <script src="/assets/app.js" defer></script>
     </head>
@@ -38,7 +46,7 @@ export function Brand({ s }: { s: Settings }) {
 export function Layout(props: { title?: string; s: Settings; student?: Student | null; description?: string; children: Child }) {
   const { s } = props
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" data-theme={themeOf(s)}>
       <Head title={props.title ? `${props.title} · ${s.store_name}` : s.store_name} s={s} description={props.description ?? s.store_tagline} />
       <body>
         <header class="top">
@@ -79,7 +87,7 @@ const ADMIN_NAV = [
 export function AdminLayout(props: { title: string; s: Settings; active: string; children: Child }) {
   const { s } = props
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" data-theme={themeOf(s)}>
       <Head title={`${props.title} · Painel`} s={s} />
       <body>
         <div class="admin">
