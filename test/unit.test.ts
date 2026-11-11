@@ -1,9 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildPixPayload, crc16 } from '../src/lib/pix.ts'
+import { buildPixPayload, crc16, normalizePixKey } from '../src/lib/pix.ts'
 import { parseBRL, slugify } from '../src/lib/format.ts'
 import { markdown } from '../src/lib/markdown.ts'
 import { hashPassword, verifyPassword } from '../src/lib/crypto.ts'
+import { discountFor, isValidCode, normalizeCode, parseLocalDateTime, toLocalDateTime } from '../src/lib/coupons.ts'
 
 test('Pix: exemplo oficial do Banco Central', () => {
   const body =
@@ -42,4 +43,30 @@ test('senha', async () => {
   const h = await hashPassword('minha-senha-123')
   assert.ok(await verifyPassword('minha-senha-123', h))
   assert.ok(!(await verifyPassword('errada', h)))
+})
+
+test('cupom: desconto em % e em R$, nunca passa do preço', () => {
+  assert.equal(discountFor({ kind: 'percent', value: 20 }, 19700), 3940)
+  assert.equal(discountFor({ kind: 'percent', value: 100 }, 19700), 19700)
+  assert.equal(discountFor({ kind: 'fixed', value: 3000 }, 19700), 3000)
+  assert.equal(discountFor({ kind: 'fixed', value: 50000 }, 19700), 19700)
+})
+
+test('cupom: código normalizado e datas no horário de Brasília', () => {
+  assert.equal(normalizeCode('  black friday '), 'BLACKFRIDAY')
+  assert.ok(isValidCode('ALUNO-10'))
+  assert.ok(!isValidCode('AÇÃO'))
+  assert.ok(!isValidCode('AB'))
+  const t = parseLocalDateTime('2026-11-30T23:59')
+  assert.equal(t, Date.parse('2026-12-01T02:59:00Z'))
+  assert.equal(toLocalDateTime(t), '2026-11-30T23:59')
+  assert.equal(parseLocalDateTime('30/11/2026'), null)
+})
+
+test('Pix: celular escrito do jeito comum vira +55', () => {
+  assert.equal(normalizePixKey('(11) 98765-4321'), '+5511987654321')
+  assert.equal(normalizePixKey('11 98765-4321'), '+5511987654321')
+  assert.equal(normalizePixKey('123.456.789-09'), '12345678909')
+  assert.equal(normalizePixKey('+55 11 98765-4321'), '+5511987654321')
+  assert.equal(normalizePixKey('Fulano@Exemplo.com'), 'fulano@exemplo.com')
 })

@@ -27,7 +27,8 @@ export type OrderStatus =
   | 'disputed' // contestação no cartão: sem acesso
   | 'cancelled' // cancelado/expirado
 
-export type PaymentMethod = 'pix_manual' | 'mp_pix' | 'mp_card'
+/** free = saiu de graça com cupom de 100% */
+export type PaymentMethod = 'pix_manual' | 'mp_pix' | 'mp_card' | 'free'
 
 export type Course = {
   id: number
@@ -69,4 +70,6 @@ export type Order = {
   paid_at: number | null
   refunded_at: number | null
   note: string | null
+  coupon_id: number | null
+  discount_cents: number
 }

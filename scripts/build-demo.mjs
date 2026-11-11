@@ -128,6 +128,8 @@ async function seed() {
       store_name: 'Escola Exemplo',
       store_tagline: 'Cursos práticos, direto ao ponto. Comprou, começou.',
       accent_color: '#6d4aff',
+      color_mode: 'auto',
+      mode_toggle: '1',
       seller_email: 'vendedor@exemplo.com',
       support_contact: 'contato@exemplo.com',
       footer_text: 'Loja de demonstração do Taxa Zero',
@@ -175,6 +177,17 @@ async function seed() {
     }
   }
 
+  // Cupons de exemplo
+  const dt = (ms) => new Date(ms - 3 * 3600000).toISOString().slice(0, 16)
+  const day = 86400000
+  for (const k of [
+    { code: 'BEMVINDO10', kind: 'percent', value: '10', course_id: '', max_uses: '100', expires_at: dt(Date.now() + 30 * day) },
+    { code: 'FOTO20', kind: 'fixed', value: '20,00', course_id: '2', max_uses: '', expires_at: dt(Date.now() + 7 * day) },
+    { code: 'CORTESIA', kind: 'percent', value: '100', course_id: '1', max_uses: '5', expires_at: '' },
+    { code: 'LANCAMENTO', kind: 'percent', value: '30', course_id: '', max_uses: '50', starts_at: dt(Date.now() - 60 * day), expires_at: dt(Date.now() - 30 * day) },
+  ])
+    await admin.send('/admin/cupons/novo', { method: 'POST', form: { once_per_student: '1', active: '1', starts_at: '', ...k } })
+
   // Aluna de demonstração: comprou o curso 1 (pago) e tem um Pix pendente do curso 2
   const ana = client()
   await ana.send(`/c/${slugOf(COURSES[0].title)}/comprar`, {
@@ -214,7 +227,9 @@ async function seed() {
     const method = methods[i % methods.length]
     const id = `demo${String(i).padStart(4, '0')}x${Math.floor(rnd() * 1e6).toString(36)}`
     sql += `INSERT INTO students (name, email, password_hash, created_at) VALUES ('${n}', '${email}', 'x', ${t});\n`
-    sql += `INSERT INTO orders (id, course_id, student_id, amount_cents, method, status, created_at, paid_at) VALUES ('${id}', ${course}, (SELECT id FROM students WHERE email='${email}'), ${prices[course - 1]}, '${method}', '${status}', ${t}, ${status === 'pending' ? 'NULL' : t + 60000});\n`
+    const withCoupon = i % 6 === 2
+    const discount = withCoupon ? Math.round(prices[course - 1] * 0.1) : 0
+    sql += `INSERT INTO orders (id, course_id, student_id, amount_cents, method, status, created_at, paid_at, coupon_id, discount_cents) VALUES ('${id}', ${course}, (SELECT id FROM students WHERE email='${email}'), ${prices[course - 1] - discount}, '${method}', '${status}', ${t}, ${status === 'pending' ? 'NULL' : t + 60000}, ${withCoupon ? 1 : 'NULL'}, ${discount});\n`
   }
   writeFileSync(join(STATE, 'seed.sql'), sql)
   execFileSync(isWin ? 'npx.cmd' : 'npx', ['wrangler', 'd1', 'execute', 'DB', '--local', '--persist-to', STATE, '--file', join(STATE, 'seed.sql')], {
@@ -255,7 +270,10 @@ async function main() {
   for (const s of slugs) {
     add(`/c/${s}`, anon)
     add(`/c/${s}/comprar`, anon)
+    add(`/c/${s}?cupom=BEMVINDO10`, anon)
+    add(`/c/${s}/comprar?cupom=BEMVINDO10`, anon)
   }
+  add('/?cupom=BEMVINDO10', anon)
   add(`/pedido/${pendingPix}`, ana)
   for (const [oid, v] of Object.values(checkoutOrders)) add(`/pedido/${oid}`, v)
   add(`/pedido/${paidOrder}`, ana)
@@ -269,6 +287,9 @@ async function main() {
   for (const id of [1, 2, 3]) add(`/admin/cursos/${id}`, admin)
   const lessonEdit = [...(await admin.html('/admin/cursos/1')).matchAll(/href="(\/admin\/aulas\/\d+)"/g)].map((m) => m[1])
   for (const l of lessonEdit) add(l, admin)
+  add('/admin/cupons', admin)
+  add('/admin/cupons/novo', admin)
+  add('/admin/cupons/1', admin)
   add('/admin/alunos', admin)
   add('/admin/configuracoes', admin)
 
@@ -277,7 +298,7 @@ async function main() {
   known.set('/admin/entrar', fileFor('/admin'))
   // Para onde cada formulário "vai" na demo (no site real, ele salvaria/pagaria de verdade)
   const formNext = (action, page) => {
-    const m = /^\/c\/([^/]+)\/comprar$/.exec(page)
+    const m = /^\/c\/([^/?]+)\/comprar(\?.*)?$/.exec(page)
     if (m) return `/pedido/${checkoutOrders[m[1]][0]}`
     if (page === '/aluno/entrar') return '/aluno'
     if (action.endsWith('/paguei')) return `/pedido/${pendingPix}`
@@ -317,6 +338,8 @@ async function main() {
       const next = formNext('', p)
       return `<form method="post" data-demo-next="${next ? link(next, p) : ''}"`
     })
+    const cm = /^\/c\/([^/?]+)\/comprar/.exec(p)
+    if (cm) html = html.replace('class="coupon-form', `data-demo-coupon="${link(`/c/${cm[1]}/comprar?cupom=BEMVINDO10`, p)}" class="coupon-form`)
     html = html.replace(/ data-poll="[^"]*"/g, '').replace(/ (required|minlength="\d+")(="")?/g, '')
     html = html.replace(/<link rel="stylesheet" href="https:\/\/fonts\.googleapis\.com[^>]*>/, `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?${ALL_FONTS}&amp;display=swap"/>`)
     html = html.replace('</head>', `<link rel="stylesheet" href="${BASE}assets/demo.css"/><script src="${BASE}assets/demo.js"></script></head>`)
@@ -357,6 +380,7 @@ const DEMO_JS = `
 (function(){
   var KEY='tz-demo-tema', root=document.documentElement;
   try{var saved=localStorage.getItem(KEY); if(saved) root.setAttribute('data-theme',saved)}catch(e){}
+  var mm=document.cookie.match(/(?:^|; )tz_mode=(light|dark)/); if(mm) root.setAttribute('data-mode',mm[1]);
   function setTheme(t){root.setAttribute('data-theme',t);try{localStorage.setItem(KEY,t)}catch(e){}
     document.querySelectorAll('.demo-theme select').forEach(function(s){s.value=t});
     document.querySelectorAll('input[name=theme]').forEach(function(r){r.checked=r.value===t})}
@@ -371,7 +395,14 @@ const DEMO_JS = `
     t.textContent=msg;t.classList.add('on');clearTimeout(t._h);t._h=setTimeout(function(){t.classList.remove('on')},3200);
   }
   window.addEventListener('submit',function(e){
-    var f=e.target; if((f.getAttribute('method')||'get').toLowerCase()==='get') return;
+    var f=e.target;
+    if(f.classList.contains('coupon-form')){
+      e.preventDefault(); e.stopImmediatePropagation();
+      var code=((f.querySelector('input')||{}).value||'').trim().toUpperCase();
+      if(code==='BEMVINDO10'){ location.href=f.getAttribute('data-demo-coupon'); return; }
+      toast(code ? 'Na demo, experimente o cupom BEMVINDO10.' : 'Digite um cupom. Na demo, use BEMVINDO10.'); return;
+    }
+    if((f.getAttribute('method')||'get').toLowerCase()==='get') return;
     e.preventDefault(); e.stopImmediatePropagation();
     var next=f.getAttribute('data-demo-next');
     if(next){ location.href=next; return; }

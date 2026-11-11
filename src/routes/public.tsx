@@ -8,8 +8,9 @@ import { buildPixPayload, qrSvg } from '../lib/pix'
 import { hashPassword, randomId, verifyPassword } from '../lib/crypto'
 import { createSession, tooManyAttempts } from '../lib/auth'
 import { createCardCheckout, createPixPayment } from '../lib/mercadopago'
-import { getCourse, getOrder, hasAccess, notificationUrl, refreshFromMp } from '../lib/orders'
+import { getCourse, getOrder, hasAccess, markPaid, notificationUrl, refreshFromMp } from '../lib/orders'
 import { sendEmail } from '../lib/email'
+import { checkCoupon, normalizeCode, shortDiscount, type CouponCheck } from '../lib/coupons'
 
 export const origin = (c: Context) => new URL(c.req.url).origin
 
@@ -20,6 +21,8 @@ app.get('/', async (c) => {
   const s = c.get('settings')
   const { results: courses } = await c.env.DB.prepare('SELECT * FROM courses WHERE published = 1 ORDER BY created_at DESC').all<Course>()
   const hasAdmin = await c.env.DB.prepare('SELECT 1 FROM admins LIMIT 1').first()
+  const cupom = normalizeCode(c.req.query('cupom') ?? '')
+  const q = cupom ? `?cupom=${encodeURIComponent(cupom)}` : ''
   return c.html(
     <Layout s={s} student={c.get('student')}>
       <section class="hero wrap">
@@ -30,7 +33,7 @@ app.get('/', async (c) => {
         {courses.length ? (
           <div class="grid g3">
             {courses.map((course) => (
-              <a href={`/c/${course.slug}`} class="card course-card">
+              <a href={`/c/${course.slug}${q}`} class="card course-card">
                 <Cover course={course} />
                 <div class="body">
                   <h3>{course.title}</h3>
@@ -85,6 +88,9 @@ app.get('/c/:slug', async (c) => {
   const bullets = course.bullets.split('\n').map((b) => b.trim()).filter(Boolean)
   const methods = enabledMethods(s)
   const anyMethod = methods.pix_manual || methods.mp_pix || methods.mp_card
+  const cupom = c.req.query('cupom') ?? ''
+  const promo = cupom && !owned ? await checkCoupon(c.env.DB, cupom, course, student?.id ?? null) : null
+  const buyHref = `/c/${course.slug}/comprar${promo?.ok ? `?cupom=${encodeURIComponent(promo.coupon.code)}` : ''}`
 
   return c.html(
     <Layout s={s} student={student} title={course.title} description={course.subtitle}>
@@ -115,13 +121,13 @@ app.get('/c/:slug', async (c) => {
             <div class="curriculum">
               <h2>Conteúdo do curso</h2>
               <p class="muted small">
-                {curriculum.length} módulos · {totalLessons} aulas
+                {curriculum.length} {curriculum.length === 1 ? 'módulo' : 'módulos'} · {totalLessons} {totalLessons === 1 ? 'aula' : 'aulas'}
               </p>
               {curriculum.map((m, i) => (
                 <details open={i === 0}>
                   <summary>
                     <span>{m.title}</span>
-                    <span class="muted small">{m.lessons.length} aulas</span>
+                    <span class="muted small">{m.lessons.length} {m.lessons.length === 1 ? 'aula' : 'aulas'}</span>
                   </summary>
                   <ol>
                     {m.lessons.map((l) => (
@@ -137,9 +143,16 @@ app.get('/c/:slug', async (c) => {
         </div>
         <aside class="sticky">
           <div class="card pad-lg buybox stack">
+            {promo && !promo.ok && <div class="alert warn small" style="margin:0">{promo.error}</div>}
+            {promo?.ok && (
+              <div class="alert ok small" style="margin:0">
+                Cupom <strong>{promo.coupon.code}</strong> aplicado: {shortDiscount(promo.coupon)}
+              </div>
+            )}
             <div>
               <div class="muted small">Acesso completo por</div>
-              <div class="price">{brl(course.price_cents)}</div>
+              {promo?.ok && <s class="muted">{brl(course.price_cents)}</s>}
+              <div class="price">{promo?.ok ? (promo.final ? brl(promo.final) : 'Grátis') : brl(course.price_cents)}</div>
               {methods.mp_card && Number(s.mp_max_installments) > 1 && (
                 <div class="muted small">ou parcelado no cartão em até {s.mp_max_installments}x</div>
               )}
@@ -149,8 +162,8 @@ app.get('/c/:slug', async (c) => {
                 Continuar assistindo
               </a>
             ) : anyMethod ? (
-              <a class="btn lg block" href={`/c/${course.slug}/comprar`}>
-                Quero comprar
+              <a class="btn lg block" href={buyHref}>
+                {promo?.ok && !promo.final ? 'Quero meu acesso' : 'Quero comprar'}
               </a>
             ) : (
               <div class="alert warn">As vendas ainda não estão abertas.</div>
@@ -168,8 +181,11 @@ app.get('/c/:slug', async (c) => {
 })
 
 // ───────────── Checkout ─────────────
-function CheckoutPage(props: { c: Context<AppEnv>; course: Course; error?: string; values?: Record<string, string> }) {
-  const { c, course, error } = props
+function CheckoutPage(props: { c: Context<AppEnv>; course: Course; error?: string; values?: Record<string, string>; promo?: CouponCheck | null }) {
+  const { c, course, error, promo } = props
+  const applied = promo?.ok ? promo : null
+  const total = applied ? applied.final : course.price_cents
+  const buyUrl = `/c/${course.slug}/comprar`
   const s = c.get('settings')
   const student = c.get('student')
   const m = enabledMethods(s)
@@ -188,13 +204,40 @@ function CheckoutPage(props: { c: Context<AppEnv>; course: Course; error?: strin
               <div class="muted small">Você está comprando</div>
               <h2 style="margin:0">{course.title}</h2>
             </div>
-            <div class="price">{brl(course.price_cents)}</div>
+            <div style="text-align:right">
+              {applied && <s class="muted small">{brl(course.price_cents)}</s>}
+              <div class="price">{total ? brl(total) : 'Grátis'}</div>
+            </div>
           </div>
           <Flash msg={error} kind="bad" />
-          <form method="post" class="stack">
+          {applied ? (
+            <div class="alert ok small row spread" style="margin:0">
+              <span>
+                Cupom <strong>{applied.coupon.code}</strong>: {shortDiscount(applied.coupon)} ({brl(applied.discount)} a menos)
+              </span>
+              <a href={buyUrl}>Remover</a>
+            </div>
+          ) : (
+            <details class="coupon-box" open={!!promo}>
+              <summary>Tem um cupom de desconto?</summary>
+              {promo && !promo.ok && <div class="alert warn small">{promo.error}</div>}
+              <form method="get" action={buyUrl} class="coupon-form copy">
+                <input name="cupom" placeholder="Digite o cupom" aria-label="Cupom de desconto" maxlength={30} autocomplete="off" value={props.values?.coupon} />
+                <button class="btn ghost" type="submit">
+                  Aplicar
+                </button>
+              </form>
+            </details>
+          )}
+          {student && <form id="sair-checkout" method="post" action={`/aluno/sair?next=${encodeURIComponent(buyUrl)}`} />}
+          <form method="post" action={buyUrl} class="stack">
+            {applied && <input type="hidden" name="coupon" value={applied.coupon.code} />}
             {student ? (
               <div class="alert info">
-                Comprando como <strong>{student.name}</strong> ({student.email})
+                Comprando como <strong>{student.name}</strong> ({student.email}).{' '}
+                <button class="linkish" type="submit" form="sair-checkout">
+                  Não é você? Sair
+                </button>
               </div>
             ) : (
               <>
@@ -214,6 +257,9 @@ function CheckoutPage(props: { c: Context<AppEnv>; course: Course; error?: strin
                 </div>
               </>
             )}
+            {total === 0 ? (
+              <div class="alert info small">Com este cupom o curso sai de graça. É só confirmar.</div>
+            ) : (
             <div>
               <label>Forma de pagamento</label>
               <div class="methods">
@@ -247,14 +293,15 @@ function CheckoutPage(props: { c: Context<AppEnv>; course: Course; error?: strin
                 )}
               </div>
             </div>
+            )}
             <label class="check small">
-              <input type="checkbox" name="terms" value="1" required />
+              <input type="checkbox" name="terms" value="1" required checked={v.terms === '1'} />
               <span>
                 Li e aceito os <a href="/termos" target="_blank">termos de compra e reembolso</a>.
               </span>
             </label>
             <button class="btn lg block" type="submit">
-              Finalizar compra · {brl(course.price_cents)}
+              {total ? `Finalizar compra · ${brl(total)}` : 'Liberar meu acesso'}
             </button>
             <div class="trust">
               <span>🔒 Seus dados de cartão nunca passam por este site</span>
@@ -276,7 +323,9 @@ app.get('/c/:slug/comprar', async (c) => {
   if (!course) return c.notFound()
   const student = c.get('student')
   if (student && (await hasAccess(c.env.DB, student.id, course.id))) return c.redirect(`/aluno/curso/${course.id}`)
-  return c.html(<CheckoutPage c={c} course={course} />)
+  const cupom = c.req.query('cupom')
+  const promo = cupom !== undefined ? await checkCoupon(c.env.DB, cupom, course, student?.id ?? null) : null
+  return c.html(<CheckoutPage c={c} course={course} promo={promo} values={{ coupon: cupom ?? '' }} />)
 })
 
 app.post('/c/:slug/comprar', async (c) => {
@@ -284,12 +333,22 @@ app.post('/c/:slug/comprar', async (c) => {
   const course = await publishedCourse(c)
   if (!course) return c.notFound()
   const form = await c.req.parseBody()
-  const values = { name: String(form.name ?? '').trim(), email: String(form.email ?? '').trim().toLowerCase(), method: String(form.method ?? '') }
-  const fail = (error: string) => c.html(<CheckoutPage c={c} course={course} error={error} values={values} />, 400)
+  const values = {
+    name: String(form.name ?? '').trim().slice(0, 100),
+    email: String(form.email ?? '').trim().toLowerCase(),
+    method: String(form.method ?? ''),
+    coupon: normalizeCode(String(form.coupon ?? '')),
+    terms: form.terms === '1' ? '1' : '',
+  }
+  // Confere o cupom já aqui (para mostrar o preço certo se algo der errado) e de novo depois de saber quem é o aluno
+  let promo: CouponCheck | null = values.coupon ? await checkCoupon(c.env.DB, values.coupon, course, c.get('student')?.id ?? null) : null
+  const fail = (error: string) => c.html(<CheckoutPage c={c} course={course} error={error} values={values} promo={promo?.ok ? promo : null} />, 400)
+  if (promo && !promo.ok) return fail(`${promo.error} Você pode continuar sem o cupom.`)
 
-  const method = values.method as PaymentMethod
+  const free = !!promo?.ok && promo.final === 0
+  const method = (free ? 'free' : values.method) as PaymentMethod
   const enabled = enabledMethods(s)
-  if (!(method in enabled) || !enabled[method]) return fail('Escolha uma forma de pagamento.')
+  if (!free && (!(method in enabled) || !enabled[method as keyof typeof enabled])) return fail('Escolha uma forma de pagamento.')
   if (form.terms !== '1') return fail('Você precisa aceitar os termos.')
 
   // 1) Identifica (ou cria) o aluno
@@ -320,11 +379,20 @@ app.post('/c/:slug/comprar', async (c) => {
 
   // 2) Reaproveita um pedido em aberto (evita pedidos duplicados ao clicar duas vezes)
   const open = await c.env.DB.prepare(
-    `SELECT id FROM orders WHERE student_id = ? AND course_id = ? AND method = ? AND status IN ('pending','awaiting_confirmation') AND created_at > ? AND amount_cents = ?`,
+    `SELECT id FROM orders WHERE student_id = ? AND course_id = ? AND method = ? AND status IN ('pending','awaiting_confirmation') AND created_at > ? AND amount_cents = ? AND COALESCE(coupon_id, 0) = ?`,
   )
-    .bind(student.id, course.id, method, now() - DAY, course.price_cents)
+    .bind(student.id, course.id, method, now() - DAY, promo?.ok ? promo.final : course.price_cents, promo?.ok ? promo.coupon.id : 0)
     .first<{ id: string }>()
   if (open) return c.redirect(`/pedido/${open.id}`)
+
+  // Agora que sabemos quem é o aluno: confere "uma vez por aluno" e o limite de usos
+  if (promo?.ok) {
+    promo = await checkCoupon(c.env.DB, values.coupon, course, student.id)
+    if (!promo.ok) return fail(`${promo.error} Você pode continuar sem o cupom.`)
+  }
+  const amount = promo?.ok ? promo.final : course.price_cents
+  const couponId = promo?.ok ? promo.coupon.id : null
+  const discount = promo?.ok ? promo.discount : 0
 
   // 3) Cria o pedido. O valor vem SEMPRE do banco, nunca do formulário.
   const orderId = randomId()
@@ -332,13 +400,22 @@ app.post('/c/:slug/comprar', async (c) => {
   let providerId: string | null = null
   let pixPayload: string | null = null
   let checkoutUrl: string | null = null
+  if (method === 'free') {
+    await c.env.DB.prepare(
+      `INSERT INTO orders (id, course_id, student_id, amount_cents, method, status, coupon_id, discount_cents, created_at) VALUES (?, ?, ?, 0, 'free', 'pending', ?, ?, ?)`,
+    )
+      .bind(orderId, course.id, student.id, couponId, discount, now())
+      .run()
+    await markPaid(c.env, s, base, (await getOrder(c.env.DB, orderId))!)
+    return c.redirect(`/pedido/${orderId}`)
+  }
   try {
     if (method === 'pix_manual') {
-      pixPayload = buildPixPayload({ key: s.pix_key, name: s.pix_name, city: s.pix_city, amountCents: course.price_cents, txid: orderId })
+      pixPayload = buildPixPayload({ key: s.pix_key, name: s.pix_name, city: s.pix_city, amountCents: amount, txid: orderId })
     } else if (method === 'mp_pix') {
       const p = await createPixPayment(s.mp_access_token, {
         orderId,
-        amountCents: course.price_cents,
+        amountCents: amount,
         description: course.title,
         email: student.email,
         name: student.name,
@@ -350,7 +427,7 @@ app.post('/c/:slug/comprar', async (c) => {
     } else {
       checkoutUrl = await createCardCheckout(s.mp_access_token, {
         orderId,
-        amountCents: course.price_cents,
+        amountCents: amount,
         title: course.title,
         email: student.email,
         name: student.name,
@@ -365,10 +442,10 @@ app.post('/c/:slug/comprar', async (c) => {
   }
 
   await c.env.DB.prepare(
-    `INSERT INTO orders (id, course_id, student_id, amount_cents, method, status, provider_payment_id, pix_payload, checkout_url, created_at)
-     VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
+    `INSERT INTO orders (id, course_id, student_id, amount_cents, method, status, provider_payment_id, pix_payload, checkout_url, coupon_id, discount_cents, created_at)
+     VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)`,
   )
-    .bind(orderId, course.id, student.id, course.price_cents, method, providerId, pixPayload, checkoutUrl, now())
+    .bind(orderId, course.id, student.id, amount, method, providerId, pixPayload, checkoutUrl, couponId, discount, now())
     .run()
   return c.redirect(`/pedido/${orderId}`)
 })

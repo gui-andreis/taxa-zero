@@ -25,6 +25,51 @@ export const THEME_FONTS: Record<ThemeId, string> = {
 export const ALL_FONTS =
   'family=Inter:wght@300;400;500;600;700;800&family=Inter+Tight:wght@600;800;900&family=JetBrains+Mono:wght@400;500;700&family=Source+Serif+4:opsz,ital,wght@8..60,0,400;8..60,0,600;8..60,1,400'
 
+/**
+ * Modo claro/escuro. Cada tema tem a sua versão "invertida":
+ * os temas claros ganham uma versão escura, e o Cyber (que nasce escuro) ganha uma clara.
+ * <html data-mode="auto"> segue o aparelho do visitante; "light"/"dark" forçam.
+ */
+export const COLOR_MODES = [
+  { id: 'auto', name: 'Automático', desc: 'Segue o modo do celular ou computador de quem visita' },
+  { id: 'light', name: 'Sempre claro', desc: '' },
+  { id: 'dark', name: 'Sempre escuro', desc: '' },
+] as const
+export type ColorMode = (typeof COLOR_MODES)[number]['id']
+export const isColorMode = (m: string): m is ColorMode => COLOR_MODES.some((x) => x.id === m)
+
+const DARK_VARS: Partial<Record<ThemeId, string>> = {
+  saas: `--bg:#0a1020; --surface:#111a2e; --surface-2:#18233b; --ink:#e6edf7; --muted:#93a3b8; --line:#22304a; --card-line:#1c2840;
+    --accent:#7c75ff; --ok:#3ddc97; --ok-bg:#0f2e22; --warn:#ffb547; --warn-bg:#33240b; --bad:#ff6b81; --bad-bg:#3a1520;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 12px 32px rgba(0,0,0,.35); --top-bg:rgba(10,16,32,.82); --side-bg:#0d1526; --input-bg:#0d1526; --code:#18233b; color-scheme:dark;`,
+  editorial: `--bg:#151412; --surface:#1c1b18; --surface-2:#24221e; --ink:#ece8df; --muted:#a39d90; --line:#34312b;
+    --accent:#e0965f; --btn:#ece8df; --btn-ink:#151412; --dot-ink:#151412; --ok:#8fcf95; --ok-bg:#1d2a1e; --warn:#e6bb62; --warn-bg:#2d2615; --bad:#ef8a7e; --bad-bg:#33201d;
+    --top-bg:rgba(21,20,18,.9); --side-bg:#151412; --input-bg:#1c1b18; --cover:#2a2723; --cover-2:#322e29; --cover-3:#3a352f; --cover-ink:#ece8df; --bar:#ece8df; --code:#24221e; color-scheme:dark;`,
+  suico: `--bg:#000; --surface:#000; --surface-2:#141414; --ink:#fff; --muted:#aaa; --line:#fff;
+    --accent:#ff2a1f; --ok:#fff; --ok-bg:#000; --warn-bg:#000; --bad-bg:#000;
+    --top-bg:#000; --side-bg:#000; --input-bg:#000; --cover:#fff; --cover-2:var(--accent); --cover-3:#1c1c1c; --cover-ink:#000; --cover-ink-2:#fff; --cover-ink-3:#fff; --bar:#fff; --code:#141414; color-scheme:dark;`,
+  minimo: `--bg:#0c0c0c; --surface:#0c0c0c; --surface-2:#161616; --ink:#ededed; --muted:#8a8a8a; --line:#1f1f1f;
+    --accent:#ededed; --btn:#ededed; --btn-ink:#0c0c0c; --dot-ink:#0c0c0c; --ok:#ededed; --ok-bg:#1a1a1a; --warn:#ededed; --warn-bg:#1a1a1a; --bad:#ff6b5e; --bad-bg:#2a1312;
+    --top-bg:rgba(12,12,12,.9); --side-bg:#0c0c0c; --input-bg:#0c0c0c; --cover:#151515; --cover-2:#191919; --cover-3:#1d1d1d; --cover-ink:#ededed; --bar:#ededed; --code:#161616; color-scheme:dark;`,
+}
+const LIGHT_VARS: Partial<Record<ThemeId, string>> = {
+  cyber: `--bg:#eef6fb; --surface:#fff; --surface-2:#e3f0f7; --ink:#061a26; --muted:#4f6a7d; --line:#b9d4e3; --hi:#061a26;
+    --accent:#c4009a; --btn:#007f8c; --btn-ink:#fff; --label:#c4009a; --neon:#007f8c;
+    --ok:#0a7d43; --ok-bg:#dcf5e8; --warn:#8a6d00; --warn-bg:#fdf3cf; --bad:#c41d3f; --bad-bg:#fde6eb;
+    --top-bg:rgba(238,246,251,.85); --side-bg:#f6fbfe; --input-bg:#fff; --code:#e3f0f7; color-scheme:light;`,
+}
+
+function modeCss() {
+  let out = ''
+  const add = (vars: Partial<Record<ThemeId, string>>, mode: 'dark' | 'light') => {
+    for (const [t, v] of Object.entries(vars))
+      out += `html[data-theme=${t}][data-mode=${mode}]{${v}}\n@media (prefers-color-scheme:${mode}){html[data-theme=${t}][data-mode=auto]{${v}}}\n`
+  }
+  add(DARK_VARS, 'dark')
+  add(LIGHT_VARS, 'light')
+  return out
+}
+
 export const CSS = /* css */ `
 :root,[data-theme=saas]{
   --bg:#f6f9fc; --surface:#fff; --surface-2:#f1f4f9; --ink:#0a2540; --muted:#5b6b80; --line:#e3e8ef; --lw:1px;
@@ -36,7 +81,7 @@ export const CSS = /* css */ `
   --hw:700; --ht:none; --hls:-.025em; --lt:none; --lls:0;
   --top-bg:rgba(255,255,255,.85); --side-bg:#fff; --input-bg:#fff;
   --cover:linear-gradient(135deg,var(--accent),#00d4ff); --cover-2:linear-gradient(135deg,#ff6b9d,#ffb36b); --cover-3:linear-gradient(135deg,#0e8a5f,#7ee0b1); --cover-ink:#fff;
-  --bar:var(--accent); --code:#f1f4f9;
+  --bar:var(--accent); --code:#f1f4f9; --card-line:#eef1f5;
   color-scheme:light;
 }
 [data-theme=editorial]{
@@ -59,7 +104,7 @@ export const CSS = /* css */ `
   --hw:700; --ht:uppercase; --hls:-.02em; --lt:uppercase; --lls:.16em;
   --top-bg:rgba(5,6,10,.85); --side-bg:#080a11; --input-bg:#070910;
   --cover:repeating-linear-gradient(0deg,#0b0d14 0 3px,#0e1424 3px 4px); --cover-2:var(--cover); --cover-3:var(--cover); --cover-ink:#00f0ff;
-  --bar:linear-gradient(#ff2bd6,#00f0ff); --code:#0f1220; color-scheme:dark;
+  --bar:linear-gradient(#ff2bd6,#00f0ff); --code:#0f1220; --hi:#fff; color-scheme:dark;
 }
 [data-theme=suico]{
   --bg:#fff; --surface:#fff; --surface-2:#f2f2f2; --ink:#000; --muted:#555; --line:#000; --lw:2px;
@@ -69,7 +114,7 @@ export const CSS = /* css */ `
   --fh:"Inter Tight",Inter,ui-sans-serif,system-ui,sans-serif; --fb:Inter,ui-sans-serif,system-ui,sans-serif;
   --hw:900; --ht:none; --hls:-.045em; --lt:uppercase; --lls:.06em;
   --top-bg:#fff; --side-bg:#fff; --input-bg:#fff;
-  --cover:#000; --cover-2:var(--accent); --cover-3:#f2f2f2; --cover-ink:#fff;
+  --cover:#000; --cover-2:var(--accent); --cover-3:#f2f2f2; --cover-ink:#fff; --cover-ink-3:#000;
   --bar:#000; --code:#f2f2f2; color-scheme:light;
 }
 [data-theme=minimo]{
@@ -96,7 +141,7 @@ p{margin:0 0 1em}
 code{font-family:"JetBrains Mono",ui-monospace,Consolas,monospace;background:var(--code);padding:2px 6px;border-radius:var(--r-sm)}
 .wrap{max-width:1180px;margin:0 auto;padding:0 24px}
 .narrow{max-width:520px;margin:0 auto;padding:0 20px}
-.muted{color:var(--muted)} .small{font-size:.875rem} .center{text-align:center}
+.muted{color:var(--muted)} .small{font-size:.875rem} .center{text-align:center} .nowrap{white-space:nowrap}
 .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap} .spread{justify-content:space-between}
 .stack>*+*{margin-top:16px}
 .grid{display:grid;gap:22px}
@@ -111,7 +156,7 @@ code{font-family:"JetBrains Mono",ui-monospace,Consolas,monospace;background:var
 .brand{display:flex;align-items:center;gap:10px;font:700 1.05rem var(--fh);text-transform:var(--ht);letter-spacing:var(--hls);color:var(--ink)}
 .brand:hover{text-decoration:none}
 .brand img{height:34px;width:auto;border-radius:var(--r-sm)}
-.brand .dot{width:30px;height:30px;border-radius:var(--r-btn);background:var(--accent);display:grid;place-items:center;color:#fff;font-size:.9rem}
+.brand .dot{width:30px;height:30px;border-radius:var(--r-btn);background:var(--accent);display:grid;place-items:center;color:var(--dot-ink,#fff);font-size:.9rem}
 .nav{display:flex;gap:6px;align-items:center}
 .nav a{color:var(--muted);font-weight:550;padding:8px 12px;border-radius:var(--r-btn);font-size:.95rem}
 .nav a:hover{background:var(--surface-2);color:var(--ink);text-decoration:none}
@@ -158,14 +203,14 @@ input[type=color]{width:56px;height:44px;border:var(--lw) solid var(--line);bord
 .course-card{overflow:hidden;padding:0;display:flex;flex-direction:column;transition:transform .15s,box-shadow .15s;color:var(--ink)}
 .course-card:hover{transform:translateY(-3px);text-decoration:none}
 .cover{aspect-ratio:16/9;background:var(--cover);display:flex;align-items:flex-end;color:var(--cover-ink);font:var(--hw) 1.35rem/1.15 var(--fh);text-transform:var(--ht);letter-spacing:var(--hls);padding:20px 22px;overflow:hidden;border-bottom:var(--lw) solid var(--line)}
-.grid>:nth-child(3n+2) .cover{background:var(--cover-2)}
-.grid>:nth-child(3n+3) .cover{background:var(--cover-3)}
+.grid>:nth-child(3n+2) .cover{background:var(--cover-2);color:var(--cover-ink-2,var(--cover-ink))}
+.grid>:nth-child(3n+3) .cover{background:var(--cover-3);color:var(--cover-ink-3,var(--cover-ink))}
 .cover img{width:calc(100% + 44px);height:calc(100% + 40px);margin:-20px -22px;object-fit:cover;max-width:none}
 .course-card .body{padding:20px 22px 22px;display:flex;flex-direction:column;gap:6px;flex:1}
 .price{font:800 1.35rem var(--fh);letter-spacing:var(--hls)}
 
 /* página de vendas */
-.sales{display:grid;grid-template-columns:minmax(0,1fr) 390px;gap:44px;align-items:start;padding:52px 0 84px}
+.sales{display:grid;grid-template-columns:minmax(0,1fr) 390px;gap:44px;align-items:start;padding-top:52px;padding-bottom:84px}
 @media (max-width:900px){.sales{grid-template-columns:1fr}}
 .sticky{position:sticky;top:92px}
 .buybox .price{font-size:2.6rem;font-weight:var(--hw)}
@@ -177,6 +222,9 @@ input[type=color]{width:56px;height:44px;border:var(--lw) solid var(--line);bord
 .curriculum details{border:var(--lw) solid var(--line);border-radius:var(--r-btn);background:var(--surface);margin-bottom:10px}
 .curriculum summary{padding:14px 18px;font-weight:650;cursor:pointer;list-style:none;display:flex;justify-content:space-between}
 .curriculum summary::-webkit-details-marker{display:none}
+.curriculum summary>span:first-child::before{content:"▸";display:inline-block;width:1.1em;color:var(--muted);transition:transform .15s}
+.curriculum details[open] summary>span:first-child::before{transform:rotate(90deg)}
+.linkish{background:none;border:0;padding:0;font:inherit;color:var(--accent);cursor:pointer;text-decoration:underline}
 .curriculum ol{margin:0;padding:0 18px 14px 40px;color:var(--muted)}
 .trust{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;font-size:.82rem;color:var(--muted);margin-top:14px}
 
@@ -259,8 +307,7 @@ footer.foot .wrap{display:flex;justify-content:space-between;gap:12px;flex-wrap:
 
 /* ───── toques próprios de cada tema ───── */
 [data-theme=saas] .card:hover.course-card{box-shadow:0 2px 4px rgba(10,37,64,.05),0 18px 44px rgba(10,37,64,.12)}
-[data-theme=saas] .card,[data-theme=saas] fieldset{border-color:#eef1f5}
-[data-theme=saas] .top{background:rgba(255,255,255,.85)}
+[data-theme=saas] .card,[data-theme=saas] fieldset{border-color:var(--card-line)}
 
 [data-theme=editorial] h1{font-style:italic}
 [data-theme=editorial] .buybox{border-color:var(--ink)}
@@ -268,7 +315,7 @@ footer.foot .wrap{display:flex;justify-content:space-between;gap:12px;flex-wrap:
 
 [data-theme=cyber]{background-image:linear-gradient(rgba(0,240,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(0,240,255,.045) 1px,transparent 1px);background-size:32px 32px}
 [data-theme=cyber] body{background:transparent}
-[data-theme=cyber] h1{color:#fff;text-shadow:0 0 24px rgba(0,240,255,.35)}
+[data-theme=cyber] h1{color:var(--hi);text-shadow:0 0 24px rgba(0,240,255,.35)}
 [data-theme=cyber] a:not(.btn):not(.brand){color:var(--neon)}
 [data-theme=cyber] .card,[data-theme=cyber] fieldset{position:relative}
 [data-theme=cyber] .card::before,[data-theme=cyber] fieldset::before{content:"";position:absolute;top:-1px;left:-1px;width:14px;height:14px;border-top:2px solid var(--neon);border-left:2px solid var(--neon);pointer-events:none}
@@ -278,13 +325,12 @@ footer.foot .wrap{display:flex;justify-content:space-between;gap:12px;flex-wrap:
 [data-theme=cyber] .chart .bar{box-shadow:0 0 10px rgba(0,240,255,.35)}
 [data-theme=cyber] .brand .dot{box-shadow:0 0 14px var(--accent)}
 [data-theme=cyber] .side nav a.on{background:transparent;color:var(--neon);box-shadow:inset 2px 0 0 var(--neon)}
-[data-theme=cyber] .kpi .value,[data-theme=cyber] .price{color:#fff}
-[data-theme=cyber] .tabs a.on{background:var(--neon);color:#05060a;border-color:var(--neon)}
-[data-theme=cyber] .method:has(input:checked){border-color:var(--neon);box-shadow:0 0 0 1px var(--neon);background:#0b1420}
+[data-theme=cyber] .kpi .value,[data-theme=cyber] .price{color:var(--hi)}
+[data-theme=cyber] .tabs a.on{background:var(--neon);color:var(--btn-ink);border-color:var(--neon)}
+[data-theme=cyber] .method:has(input:checked){border-color:var(--neon);box-shadow:0 0 0 1px var(--neon);background:color-mix(in srgb,var(--neon) 7%,var(--surface))}
 
 [data-theme=suico] .hero h1{font-size:clamp(3rem,8vw,6.2rem);line-height:.92}
-[data-theme=suico] .grid>:nth-child(3n+3) .cover{color:#000}
-[data-theme=suico] .side nav a.on{background:#000;color:#fff}
+[data-theme=suico] .side nav a.on{background:var(--ink);color:var(--bg)}
 [data-theme=suico] .chart .bar:nth-last-child(-n+5){background:var(--accent)}
 [data-theme=suico] .badge{border:2px solid currentColor;background:transparent}
 [data-theme=suico] .ticks li::before{content:"■";font-size:.7rem;top:13px}
@@ -293,5 +339,22 @@ footer.foot .wrap{display:flex;justify-content:space-between;gap:12px;flex-wrap:
 [data-theme=minimo] .buybox{background:var(--surface-2);border-color:transparent}
 [data-theme=minimo] .kpi .value{font-weight:300}
 [data-theme=minimo] .side nav a.on{background:var(--surface-2);color:var(--ink)}
-[data-theme=minimo] .btn.ghost{border-color:#e6e6e6}
+[data-theme=minimo] .btn.ghost{border-color:color-mix(in srgb,var(--ink) 12%,transparent)}
+
+/* botão claro/escuro */
+.mode-btn{display:inline-grid;place-items:center;width:38px;height:38px;border-radius:var(--r-btn);border:var(--lw) solid var(--line);background:transparent;color:var(--muted);cursor:pointer;font-size:1rem;padding:0;flex:none}
+.mode-btn:hover{background:var(--surface-2);color:var(--ink)}
+.mode-btn .i-dark{display:none}
+html[data-mode=dark] .mode-btn .i-light{display:none} html[data-mode=dark] .mode-btn .i-dark{display:inline}
+@media (prefers-color-scheme:dark){html[data-mode=auto] .mode-btn .i-light{display:none} html[data-mode=auto] .mode-btn .i-dark{display:inline}}
+.coupon-box summary{cursor:pointer;color:var(--accent);font-weight:600;font-size:.92rem;list-style:none}
+.coupon-box summary::-webkit-details-marker{display:none}
+.coupon-box[open] summary{margin-bottom:10px}
+.coupon-box .copy input{text-transform:uppercase}
+.sr-copy{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
+.mode-opts{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+.side .side-foot{display:flex;gap:8px;margin-top:10px;align-items:center}
+.side .side-foot form{flex:1}
 `
+  + modeCss()
+

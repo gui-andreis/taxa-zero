@@ -52,4 +52,5 @@ export const METHOD_LABEL: Record<string, string> = {
   pix_manual: 'Pix (manual)',
   mp_pix: 'Pix (automático)',
   mp_card: 'Cartão',
+  free: 'Grátis (cupom)',
 }

@@ -68,7 +68,8 @@ app.post('/entrar', async (c) => {
 
 app.post('/sair', async (c) => {
   await destroySession(c, 'student')
-  return c.redirect('/')
+  const next = c.req.query('next') ?? ''
+  return c.redirect(/^\/c\/[\w-]+\/comprar$/.test(next) ? next : '/')
 })
 
 // ───────────── Esqueci a senha ─────────────
@@ -90,7 +91,17 @@ app.get('/esqueci', (c) => {
               </button>
             </form>
           ) : (
-            <p class="muted center">Fale com o suporte para redefinir sua senha{s.support_contact ? `: ${s.support_contact}` : '.'}</p>
+            <p class="muted center">
+              Fale com o suporte para redefinir sua senha
+              {s.support_contact ? (
+                <>
+                  :{' '}
+                  {isEmail(s.support_contact) ? <a href={`mailto:${s.support_contact}?subject=${encodeURIComponent('Esqueci minha senha')}`}>{s.support_contact}</a> : s.support_contact}
+                </>
+              ) : (
+                '.'
+              )}
+            </p>
           )}
         </div>
       </div>
@@ -228,7 +239,7 @@ app.get('/', async (c) => {
                       <td>{brl(o.amount_cents)}</td>
                       <td>{METHOD_LABEL[o.method]}</td>
                       <td>
-                        <span class="badge">{STATUS_LABEL[o.status]}</span>
+                        <span class="badge">{o.status === 'awaiting_confirmation' ? 'Vendedor conferindo o Pix' : STATUS_LABEL[o.status]}</span>
                       </td>
                       <td>{(o.status === 'pending' || o.status === 'awaiting_confirmation') && <a href={`/pedido/${o.id}`}>Ver pedido</a>}</td>
                     </tr>

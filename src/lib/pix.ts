@@ -40,6 +40,8 @@ export function normalizePixKey(key: string): string {
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(k)) return k.toLowerCase()
   const digits = k.replace(/\D/g, '')
   if (k.startsWith('+')) return `+${digits}`
+  // Celular escrito do jeito comum, "(11) 98765-4321" ou "11 98765-4321": vira +55. CPF formatado usa pontos.
+  if (!k.includes('.') && /[()\s]/.test(k) && (digits.length === 10 || digits.length === 11)) return `+55${digits}`
   // 11 dígitos é ambíguo (CPF ou celular). Tratamos como CPF; celular deve ser cadastrado com +55.
   return digits || k
 }

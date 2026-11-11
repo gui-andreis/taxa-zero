@@ -1,16 +1,27 @@
 import { Hono, type Context } from 'hono'
 import type { AppEnv, Course, Lesson, Module, Order } from '../env'
 import { AdminLayout, Flash, Layout, themeOf } from '../views/layout'
-import { isTheme, THEMES } from '../views/styles'
+import { COLOR_MODES, isColorMode, isTheme, THEMES } from '../views/styles'
 import { brl, dateBR, DAY, isEmail, isHexColor, METHOD_LABEL, now, parseBRL, slugify, STATUS_LABEL } from '../lib/format'
 import { hashPassword, randomId, safeEqual, verifyPassword } from '../lib/crypto'
 import { createSession, destroySession, tooManyAttempts } from '../lib/auth'
 import { emailReady, enabledMethods, saveSettings, SECRET_KEYS } from '../lib/settings'
 import { getOrder, markPaid, refundOrder } from '../lib/orders'
 import { loadCurriculum, origin } from './public'
+import { registerCoupons } from './admin-coupons'
+import { normalizePixKey } from '../lib/pix'
 
 const app = new Hono<AppEnv>()
 type C = Context<AppEnv>
+
+/** Aceita o link que a pessoa copia do navegador (YouTube, Vimeo) e troca pelo link do player. */
+export function toEmbedUrl(url: string) {
+  const yt = /^https?:\/\/(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|live\/)|youtu\.be\/)([\w-]{11})/.exec(url)
+  if (yt) return `https://www.youtube-nocookie.com/embed/${yt[1]}`
+  const vm = /^https?:\/\/(?:www\.)?vimeo\.com\/(\d+)(?:\/([\da-f]+))?/.exec(url)
+  if (vm) return `https://player.vimeo.com/video/${vm[1]}${vm[2] ? `?h=${vm[2]}` : ''}`
+  return url
+}
 
 const adminExists = async (db: D1Database) => !!(await db.prepare('SELECT 1 FROM admins LIMIT 1').first())
 
@@ -130,6 +141,8 @@ app.use('*', async (c, next) => {
   await next()
 })
 
+registerCoupons(app)
+
 app.post('/sair', async (c) => {
   await destroySession(c, 'admin')
   return c.redirect('/admin/entrar')
@@ -196,7 +209,7 @@ app.get('/', async (c) => {
       )}
       {(refunds?.n ?? 0) > 0 && (
         <div class="alert bad">
-          <strong>{refunds!.n} pedido(s) de reembolso.</strong> <a href="/admin/pedidos?status=refund_requested">Ver pedidos</a>
+          <strong>{refunds!.n} {refunds!.n === 1 ? 'pedido' : 'pedidos'} de reembolso.</strong> <a href="/admin/pedidos?status=refund_requested">Ver pedidos</a>
         </div>
       )}
       {checklist.some((x) => !x.done) && (
@@ -298,6 +311,7 @@ function OrdersTable({ orders, compact }: { orders: (Order & { student_name: str
               <td>{o.course_title}</td>
               <td>
                 <strong>{brl(o.amount_cents)}</strong>
+                {o.discount_cents > 0 && <div class="small muted">cupom −{brl(o.discount_cents)}</div>}
               </td>
               <td class="small">{METHOD_LABEL[o.method]}</td>
               <td>{statusBadge(o.status)}</td>
@@ -931,7 +945,7 @@ async function readLessonForm(c: C) {
     ref = String(f.bunny_ref ?? '').trim()
     if (!/^\d+\/[\w-]+$/.test(ref)) error = 'Informe no formato BIBLIOTECA/ID_DO_VIDEO.'
   } else if (type === 'embed') {
-    ref = String(f.embed_ref ?? '').trim()
+    ref = toEmbedUrl(String(f.embed_ref ?? '').trim())
     if (!ref.startsWith('https://')) error = 'O link precisa começar com https://'
   } else if (type !== 'none') error = 'Tipo de vídeo inválido.'
   const data = {
@@ -1140,6 +1154,23 @@ app.get('/configuracoes', (c) => {
             <input id="accent_color" name="accent_color" type="color" value={s.accent_color} aria-label="Cor de destaque" />
           </div>
           <div class="hint">Desmarcado, cada tema usa a cor dele.</div>
+          <label style="margin-top:22px">Modo claro ou escuro</label>
+          <div class="methods mode-opts">
+            {COLOR_MODES.map((m) => (
+              <label class="method">
+                <input type="radio" name="color_mode" value={m.id} checked={(isColorMode(s.color_mode) ? s.color_mode : 'auto') === m.id} />
+                <span>
+                  {m.name}
+                  {m.desc && <span class="sub">{m.desc}</span>}
+                </span>
+              </label>
+            ))}
+          </div>
+          <label class="check" style="margin-top:14px">
+            <input type="checkbox" name="mode_toggle" value="1" checked={s.mode_toggle !== '0'} />
+            <span>Mostrar o botão ☾/☀ para o visitante escolher claro ou escuro</span>
+          </label>
+          <div class="hint">O tema Cyber nasce escuro: no modo claro ele vira uma versão clara com os mesmos detalhes neon.</div>
         </fieldset>
 
         <fieldset id="pagamentos">
@@ -1155,7 +1186,7 @@ app.get('/configuracoes', (c) => {
             <div class="field">
               <label for="pix_key">Chave Pix</label>
               <input id="pix_key" name="pix_key" value={s.pix_key} placeholder="e-mail, CPF/CNPJ, +5511999999999 ou aleatória" />
-              <div class="hint">Celular: use o formato +55DDDNÚMERO.</div>
+              <div class="hint">Celular: +55 com DDD, por exemplo +5511987654321 (ou "(11) 98765-4321"). Só números com 11 dígitos é lido como CPF.</div>
             </div>
             <div class="field">
               <label for="pix_name">Nome do recebedor</label>
@@ -1272,11 +1303,13 @@ app.post('/configuracoes', async (c) => {
     theme: isTheme(str('theme')) ? str('theme') : 'saas',
     accent_custom: f.accent_custom === '1' ? '1' : '0',
     accent_color: isHexColor(str('accent_color')) ? str('accent_color') : '#635bff',
+    color_mode: isColorMode(str('color_mode')) ? str('color_mode') : 'auto',
+    mode_toggle: f.mode_toggle === '1' ? '1' : '0',
     seller_email: str('seller_email'),
     support_contact: str('support_contact'),
     footer_text: str('footer_text'),
     pix_manual_enabled: f.pix_manual_enabled === '1' ? '1' : '0',
-    pix_key: str('pix_key'),
+    pix_key: str('pix_key') ? normalizePixKey(str('pix_key')) : '',
     pix_name: str('pix_name'),
     pix_city: str('pix_city'),
     mp_pix_enabled: f.mp_pix_enabled === '1' ? '1' : '0',

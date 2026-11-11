@@ -77,6 +77,25 @@ const MIGRATIONS: string[][] = [
     `CREATE INDEX IF NOT EXISTS idx_orders_student ON orders (student_id)`,
     `CREATE INDEX IF NOT EXISTS idx_orders_status ON orders (status, created_at)`,
   ],
+  // 2 · cupons de desconto
+  [
+    `CREATE TABLE IF NOT EXISTS coupons (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT NOT NULL UNIQUE,
+      kind TEXT NOT NULL,
+      value INTEGER NOT NULL,
+      course_id INTEGER,
+      max_uses INTEGER,
+      once_per_student INTEGER NOT NULL DEFAULT 1,
+      starts_at INTEGER,
+      expires_at INTEGER,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL
+    )`,
+    `ALTER TABLE orders ADD COLUMN coupon_id INTEGER`,
+    `ALTER TABLE orders ADD COLUMN discount_cents INTEGER NOT NULL DEFAULT 0`,
+    `CREATE INDEX IF NOT EXISTS idx_orders_coupon ON orders (coupon_id)`,
+  ],
 ]
 
 let migrated = false

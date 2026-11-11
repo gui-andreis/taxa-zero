@@ -7,6 +7,8 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'saas',
   accent_custom: '0',
   accent_color: '#635bff',
+  color_mode: 'auto',
+  mode_toggle: '1',
   logo_key: '',
   seller_email: '',
   support_contact: '',

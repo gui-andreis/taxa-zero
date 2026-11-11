@@ -1,6 +1,17 @@
 /** JavaScript do navegador (servido em /assets/app.js). Sem frameworks, sem scripts inline. */
 export const CLIENT_JS = /* js */ `
 (function(){
+  // Modo claro/escuro: o visitante troca e a escolha fica num cookie (o servidor já devolve a página certa)
+  document.querySelectorAll('[data-mode-toggle]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var root = document.documentElement, cur = root.getAttribute('data-mode');
+      if(cur !== 'light' && cur !== 'dark') cur = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      var next = cur === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-mode', next);
+      document.cookie = 'tz_mode=' + next + '; path=/; max-age=31536000; samesite=lax';
+    });
+  });
+
   // Copiar Pix Copia e Cola
   document.querySelectorAll('[data-copy]').forEach(function(btn){
     btn.addEventListener('click', function(){

@@ -37,11 +37,16 @@ export async function markPaid(env: Bindings, s: Settings, baseUrl: string, orde
       s,
       student.email,
       `Seu acesso ao curso "${course.title}" está liberado!`,
-      [
-        `Oi, ${student.name.split(' ')[0]}! Recebemos seu pagamento de ${brl(order.amount_cents)}.`,
-        `Para assistir, entre com o e-mail ${student.email} e a senha que você criou na compra.`,
-        `Você tem ${s.refund_days || 7} dias de garantia: se não gostar, peça o reembolso direto na área do aluno.`,
-      ],
+      order.method === 'free'
+        ? [
+            `Oi, ${student.name.split(' ')[0]}! Seu cupom liberou o curso de graça.`,
+            `Para assistir, entre com o e-mail ${student.email} e a senha que você criou.`,
+          ]
+        : [
+            `Oi, ${student.name.split(' ')[0]}! Recebemos seu pagamento de ${brl(order.amount_cents)}.`,
+            `Para assistir, entre com o e-mail ${student.email} e a senha que você criou na compra.`,
+            `Você tem ${s.refund_days || 7} dias de garantia: se não gostar, peça o reembolso direto na área do aluno.`,
+          ],
       { label: 'Acessar meu curso', url: `${baseUrl}/aluno` },
     ),
     sendEmail(s, s.seller_email, `Nova venda: ${course.title} (${brl(order.amount_cents)})`, [
@@ -80,7 +85,7 @@ export async function applyMpPayment(env: Bindings, s: Settings, baseUrl: string
 
 /** Pergunta ao Mercado Pago como está o pagamento (usado na tela do pedido e no webhook). */
 export async function refreshFromMp(env: Bindings, s: Settings, baseUrl: string, order: Order) {
-  if (order.method === 'pix_manual' || !s.mp_access_token) return
+  if (order.method === 'pix_manual' || order.method === 'free' || !s.mp_access_token) return
   try {
     const p = order.provider_payment_id
       ? await getPayment(s.mp_access_token, order.provider_payment_id)
@@ -93,7 +98,7 @@ export async function refreshFromMp(env: Bindings, s: Settings, baseUrl: string,
 
 export function canStudentRefund(s: Settings, order: Order) {
   const days = Number(s.refund_days || 7)
-  return order.status === 'paid' && !!order.paid_at && now() - order.paid_at <= days * DAY
+  return order.status === 'paid' && order.method !== 'free' && !!order.paid_at && now() - order.paid_at <= days * DAY
 }
 
 /**
@@ -105,7 +110,10 @@ export function canStudentRefund(s: Settings, order: Order) {
 export async function refundOrder(env: Bindings, s: Settings, baseUrl: string, order: Order, by: 'student' | 'admin'): Promise<string | null> {
   const course = await getCourse(env.DB, order.course_id)
   const student = await getStudent(env.DB, order.student_id)
-  if (order.method !== 'pix_manual') {
+  if (order.method === 'free') {
+    // Saiu de graça: não há dinheiro para devolver, só tira o acesso.
+    await setStatus(env, order.id, 'refunded', `, refunded_at = ${now()}`)
+  } else if (order.method !== 'pix_manual') {
     if (!s.mp_access_token) return 'Mercado Pago não está configurado.'
     let pid = order.provider_payment_id
     if (!pid) pid = (await findPaymentByOrder(s.mp_access_token, order.id))?.id?.toString() ?? null

@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { getCookie } from 'hono/cookie'
 import type { AppEnv } from './env'
 import { ensureSchema } from './db/schema'
 import { loadSettings } from './lib/settings'
@@ -15,7 +16,8 @@ import webhookRoutes from './routes/webhooks'
 const app = new Hono<AppEnv>()
 
 // Arquivos estáticos (embutidos no código, sem build)
-const ASSET_HEADERS = { 'cache-control': 'public, max-age=3600' }
+// Os links levam ?v=versão, então dá para guardar por muito tempo sem servir arquivo velho.
+const ASSET_HEADERS = { 'cache-control': 'public, max-age=31536000, immutable' }
 app.get('/assets/app.css', (c) => c.body(CSS, 200, { ...ASSET_HEADERS, 'content-type': 'text/css; charset=utf-8' }))
 app.get('/assets/app.js', (c) => c.body(CLIENT_JS, 200, { ...ASSET_HEADERS, 'content-type': 'text/javascript; charset=utf-8' }))
 
@@ -58,7 +60,10 @@ app.use('*', async (c, next) => {
 // Banco, configurações e sessões
 app.use('*', async (c, next) => {
   await ensureSchema(c.env.DB)
-  c.set('settings', await loadSettings(c.env.DB))
+  const settings = await loadSettings(c.env.DB)
+  const visitorMode = getCookie(c, 'tz_mode')
+  if (visitorMode === 'light' || visitorMode === 'dark') settings.visitor_mode = visitorMode
+  c.set('settings', settings)
   const [adminId, studentId] = await Promise.all([readSession(c, 'admin'), readSession(c, 'student')])
   c.set('admin', adminId ? await c.env.DB.prepare('SELECT id, email FROM admins WHERE id = ?').bind(adminId).first() : null)
   c.set('student', studentId ? await c.env.DB.prepare('SELECT id, name, email FROM students WHERE id = ?').bind(studentId).first() : null)

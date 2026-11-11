@@ -20,9 +20,9 @@ A demo é a interface **real** do Taxa Zero, gerada a partir do código deste re
 
 | | |
 |---|---|
-| 🛍️ [**Loja**](https://gui-andreis.github.io/taxa-zero/) | vitrine, página de vendas, checkout e tela do Pix. Troque o **tema** na barra do topo |
+| 🛍️ [**Loja**](https://gui-andreis.github.io/taxa-zero/) | vitrine, página de vendas, checkout e tela do Pix. Troque o **tema** na barra do topo, o modo ☾/☀ no cabeçalho e teste o cupom `BEMVINDO10` |
 | 🎓 [**Área do aluno**](https://gui-andreis.github.io/taxa-zero/aluno.html) | meus cursos, player com módulos e aulas, botão de reembolso |
-| 📊 [**Painel do vendedor**](https://gui-andreis.github.io/taxa-zero/admin.html) | dashboard, pedidos, confirmar Pix, cursos, aulas e configurações |
+| 📊 [**Painel do vendedor**](https://gui-andreis.github.io/taxa-zero/admin.html) | dashboard, pedidos, confirmar Pix, cursos, aulas, cupons e configurações |
 
 > A demo é atualizada sozinha a cada mudança no código (GitHub Actions → GitHub Pages). Para gerar localmente: `npm run demo`.
 
@@ -32,7 +32,8 @@ A demo é a interface **real** do Taxa Zero, gerada a partir do código deste re
 - 📊 **Dashboard** com faturamento, vendas, alunos e quanto você economizou.
 - ↺ **Garantia de 7 dias com botão de reembolso** (como manda o Código de Defesa do Consumidor).
 - ✉️ **E-mails automáticos** de compra confirmada, aviso de venda e recuperação de senha.
-- 🎨 **5 temas prontos**: SaaS moderno (padrão), Editorial, Cyber, Suíço e Mínimo. Troque em Configurações e use a sua cor e o seu logo.
+- 🏷️ **Cupons de desconto** em % ou em R$, para um curso ou todos, com data de início e de expiração, limite de usos, uso único por aluno e link pronto para divulgar. Cupom de 100% libera o curso de graça (cortesia).
+- 🎨 **5 temas prontos**: SaaS moderno (padrão), Editorial, Cyber, Suíço e Mínimo, cada um com **modo claro e escuro** (automático pelo aparelho do visitante, ou fixo). Troque em Configurações e use a sua cor e o seu logo.
 - ☁️ **Roda grátis na Cloudflare** e é configurado inteiro por um painel. Você não precisa saber programar.
 
 ---
@@ -113,7 +114,7 @@ Você pode ligar os três ao mesmo tempo, e o aluno escolhe.
 Sobra para a grande maioria dos infoprodutores:
 
 - 100 mil acessos por dia ao site
-- Banco de dados (D1): 5 GB
+- Banco de dados (D1): 500 MB por banco (dá para centenas de milhares de pedidos)
 - Arquivos (R2): 10 GB, com tráfego ilimitado e grátis
 
 Se um dia passar disso, o plano pago da Cloudflare custa a partir de US$ 5/mês, e continua sem comissão.
@@ -139,7 +140,8 @@ src/
   lib/pix.ts         gerador de BR Code (Pix Copia e Cola) + QR
   lib/mercadopago.ts Pix, Checkout Pro, reembolso, assinatura do webhook
   lib/orders.ts      regra de acesso e máquina de estados dos pedidos
-  routes/            loja, checkout, aluno, admin, mídia, webhooks
+  lib/coupons.ts     cupons: validação, limites, validade e desconto
+  routes/            loja, checkout, aluno, admin, cupons, mídia, webhooks
   views/             layout, CSS e JS do navegador
 ```
 
@@ -157,7 +159,8 @@ Para mudar o banco, **adicione** uma nova entrada no fim de `MIGRATIONS` em `src
 
 ## Próximos passos (roadmap)
 
-- [ ] Cupons de desconto
+- [x] Cupons de desconto
+- [x] Modo claro e escuro
 - [ ] Afiliados
 - [ ] Assinatura mensal (Pix Automático / recorrência)
 - [ ] Certificado de conclusão
@@ -165,6 +168,8 @@ Para mudar o banco, **adicione** uma nova entrada no fim de `MIGRATIONS` em `src
 - [ ] Marca d'água com o e-mail do aluno no vídeo
 - [ ] Outros bancos/gateways (Inter, Efí, Asaas, Stripe)
 - [ ] Produtos digitais (PDF/e-book) além de cursos
+
+A lista completa do que falta, com prioridade e esforço de cada item, está em **[docs/O-QUE-FALTA.md](docs/O-QUE-FALTA.md)**.
 
 Contribuições são bem-vindas! Abra uma issue antes de PRs grandes.
 
