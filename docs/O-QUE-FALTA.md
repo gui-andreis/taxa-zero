@@ -606,6 +606,16 @@ Um teste exploratório, clicando como um usuário comum (formulários errados, c
 - O status "Confirmar Pix" aparecia para o aluno como se fosse uma tarefa dele.
 - O e-mail de suporte em "Esqueci minha senha" não era clicável.
 - O navegador usava CSS e JS antigos por até 1 hora depois de uma atualização. Agora os arquivos têm versão.
+- Redirecionamento para site externo depois do login do aluno (`next=/\site`).
+- `SETUP_CODE` do arquivo de exemplo era aceito. Agora é recusado.
+- "Confirmar Pix" mostrava sucesso em pedido cancelado ou inexistente. Agora há "Pix chegou? Confirmar" para pedido cancelado, e o Mercado Pago também libera pedido cancelado que foi aprovado depois.
+- O mesmo aluno podia pagar duas vezes o mesmo curso. Ao confirmar um pedido, os outros em aberto são cancelados, e o painel avisa se o aluno já tem acesso.
+- Referer malformado derrubava a página com erro 500.
+- "Você economizou" contava cortesias (cupom 100%) como vendas.
+- Cupom fixo podia deixar o curso por R$ 0,01. O mínimo agora é R$ 1,00.
+- Chave Pix inválida, e-mail inválido e garantia menor que 7 dias eram aceitos em silêncio.
+- Pedir reembolso de novo dizia "a garantia terminou"; preço "1.297" era recusado.
+- Velocidade do vídeo (0,75x a 2x) nas aulas do R2.
 
 **Ainda abertos:**
 

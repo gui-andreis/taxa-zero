@@ -97,5 +97,19 @@ export const CLIENT_JS = /* js */ `
       }).catch(fail);
     });
   });
+
+  // Velocidade do vídeo (fica salva para as próximas aulas)
+  var vid = document.querySelector('.video video');
+  var speedBtns = document.querySelectorAll('[data-speed]');
+  if(vid && speedBtns.length){
+    var setSpeed = function(v){
+      vid.playbackRate = Number(v);
+      speedBtns.forEach(function(b){ b.setAttribute('aria-pressed', b.getAttribute('data-speed') === v ? 'true' : 'false') });
+      try{ localStorage.setItem('tz_speed', v) }catch(e){}
+    };
+    var savedSpeed = null; try{ savedSpeed = localStorage.getItem('tz_speed') }catch(e){}
+    if(savedSpeed && document.querySelector('[data-speed="' + savedSpeed + '"]')){ setSpeed(savedSpeed); vid.addEventListener('loadedmetadata', function(){ vid.playbackRate = Number(savedSpeed) }) }
+    speedBtns.forEach(function(b){ b.addEventListener('click', function(){ setSpeed(b.getAttribute('data-speed')) }) });
+  }
 })();
 `

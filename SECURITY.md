@@ -2,7 +2,7 @@
 
 ## Reportando uma vulnerabilidade
 
-Encontrou uma falha de segurança? **Não abra uma issue pública.** Use a aba **Security → Report a vulnerability** deste repositório no GitHub (relato privado).
+Encontrou uma falha de segurança? **Não abra uma issue pública.** Use a aba **Security → Report a vulnerability** deste repositório no GitHub (relato privado). Se ela não aparecer para você, abra uma issue pedindo um contato, **sem detalhes da falha**.
 
 Inclua:
 - o que é possível fazer com a falha (ex.: acessar curso sem pagar, ver dados de outro aluno);
@@ -35,4 +35,4 @@ Ficam fora do escopo: gravação de tela de vídeos (nenhuma plataforma impede) 
 - Use um `SETUP_CODE` forte e uma senha de painel longa.
 - Nunca compartilhe seu Access Token do Mercado Pago.
 - Configure a "assinatura secreta" do webhook no painel.
-- Mantenha sua cópia do projeto atualizada (GitHub → "Sync fork").
+- Mantenha sua cópia do projeto atualizada. Clique em **Watch → Custom → Releases** neste repositório para ser avisado das correções. Quem criou a loja pelo botão de deploy tem uma cópia independente (não é um fork): hoje a atualização é feita trazendo os arquivos da nova versão para o seu repositório. Uma forma mais simples de atualizar está no roadmap.

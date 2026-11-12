@@ -46,6 +46,17 @@ export function normalizePixKey(key: string): string {
   return digits || k
 }
 
+/** Confere o formato de uma chave já normalizada: e-mail, CPF, CNPJ, celular +55 ou chave aleatória. */
+export function isValidPixKey(key: string): boolean {
+  return (
+    /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(key) ||
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(key) ||
+    /^\+55\d{10,11}$/.test(key) ||
+    /^\d{11}$/.test(key) ||
+    /^\d{14}$/.test(key)
+  )
+}
+
 export function buildPixPayload(opts: { key: string; name: string; city: string; amountCents: number; txid: string }): string {
   const gui = field('00', 'br.gov.bcb.pix') + field('01', normalizePixKey(opts.key))
   const txid = opts.txid.replace(/[^A-Za-z0-9]/g, '').slice(0, 25) || '***'

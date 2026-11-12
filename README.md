@@ -27,7 +27,7 @@ A demo é a interface **real** do Taxa Zero, gerada a partir do código deste re
 > A demo é atualizada sozinha a cada mudança no código (GitHub Actions → GitHub Pages). Para gerar localmente: `npm run demo`.
 
 - 💸 **0% de comissão.** Pix direto na sua chave, de qualquer banco.
-- ⚡ **Pix automático e cartão em até 12x** com a sua própria conta Mercado Pago (opcional).
+- ⚡ **Pix com confirmação automática e cartão em até 12x** com a sua própria conta Mercado Pago (opcional).
 - 🔒 **Área de membros protegida.** O curso só abre depois do pagamento confirmado, e os vídeos não têm link público.
 - 📊 **Dashboard** com faturamento, vendas, alunos e quanto você economizou.
 - ↺ **Garantia de 7 dias com botão de reembolso** (como manda o Código de Defesa do Consumidor).
@@ -47,7 +47,7 @@ Num curso de **R$ 90**:
 | Hotmart (9,9% + R$ 2,49) | R$ 11,40 | **R$ 1.140** |
 | Kiwify (8,99% + R$ 2,49) | R$ 10,58 | R$ 1.058 |
 | **Taxa Zero + Pix direto** | **R$ 0** | **R$ 0** |
-| Taxa Zero + Pix automático (Mercado Pago ~0,99%) | R$ 0,89 | R$ 89 |
+| Taxa Zero + Pix via Mercado Pago (~0,99%) | R$ 0,89 | R$ 89 |
 | Taxa Zero + cartão (Mercado Pago ~4–5%) | ~R$ 4,48 | ~R$ 448 |
 
 > As taxas do Mercado Pago são cobradas pelo Mercado Pago, na sua conta. O Taxa Zero não recebe nada, nunca.
@@ -75,7 +75,7 @@ Pronto. Daqui pra frente tudo é feito pelo painel: cursos, aulas, vídeos, Pix,
 
 ## Como funcionam os pagamentos
 
-| | Pix direto | Pix automático | Cartão |
+| | Pix direto | Pix via Mercado Pago | Cartão |
 |---|---|---|---|
 | Precisa de | Só sua chave Pix | Conta Mercado Pago | Conta Mercado Pago |
 | Taxa | **R$ 0** | ~0,99% (do Mercado Pago) | ~4–5% (do Mercado Pago) |
@@ -101,7 +101,7 @@ Você pode ligar os três ao mesmo tempo, e o aluno escolhe.
 | Panda Video, Vimeo… | Plano do serviço | Conforme o serviço |
 | YouTube "não listado" | Grátis | ⚠️ Nenhuma: quem tiver o link assiste |
 
-**10 GB dão para quanto?** Um vídeo em 720p ocupa ~0,5 a 1 GB por hora. Então são **~10 a 20 horas de aula**, e o número de alunos não importa: assistir não consome esse espaço.
+**10 GB dão para quanto?** Um vídeo em 720p ocupa ~0,5 a 1 GB por hora. Então são **~10 a 20 horas de aula**. Assistir não consome esse espaço, mas cada pedaço de vídeo assistido conta nos 100 mil acessos por dia do plano grátis (veja as limitações abaixo).
 
 > 💡 **Sobre os serviços pagos:** são apenas sugestões para quem crescer e quiser mais recursos. O autor do Taxa Zero **não tem parceria nem recebe nada** de nenhum deles. Você contrata direto com eles, se quiser.
 
@@ -121,6 +121,18 @@ Se um dia passar disso, o plano pago da Cloudflare custa a partir de US$ 5/mês,
 
 ---
 
+## Limitações conhecidas
+
+O projeto é novo. Antes de migrar sua base, saiba o que ainda não tem:
+
+- **Esqueceu a senha do painel?** Ainda não há "esqueci minha senha" para o vendedor. Hoje é preciso apagar o admin pelo console do D1 na Cloudflare e criar de novo pelo `/admin/setup`.
+- **Vídeos muito assistidos no R2:** cada pedaço de vídeo conta como um acesso ao site. Com muitos alunos assistindo ao mesmo tempo, dá para chegar nos 100 mil acessos por dia do plano grátis. Para escolas grandes, use Bunny Stream ou o plano pago da Cloudflare (US$ 5/mês).
+- **Sem backup automático nem exportação** de alunos e pedidos em CSV (o D1 tem a "Time Travel" da Cloudflare, que volta o banco para qualquer momento dos últimos 7 dias no plano grátis).
+- **Pix direto é confirmado à mão** pelo vendedor. Para liberar na hora, use o Mercado Pago.
+- **Sem afiliados, order bump, assinatura e certificado** por enquanto. Está tudo no roadmap e em [docs/O-QUE-FALTA.md](docs/O-QUE-FALTA.md).
+
+---
+
 ## Para desenvolvedores
 
 Stack: **Cloudflare Workers + D1 (SQLite) + R2**, [Hono](https://hono.dev) com JSX no servidor, TypeScript. Sem framework de front e sem build de CSS. Duas dependências de runtime.
@@ -132,6 +144,10 @@ npm run dev                      # http://localhost:8787
 npm test                         # testes unitários (Pix, preços, senhas, markdown)
 npm run typecheck
 ```
+
+Requer **Node 22.18 ou mais novo** (os testes rodam TypeScript direto no Node).
+
+> **Windows:** se o `npm run dev` falhar com `Could not resolve ...middleware-loader.entry.ts` ou `SQLITE_CANTOPEN`, a pasta do projeto está num caminho muito longo. Mova para algo curto (ex.: `C:\dev\taxa-zero`) ou rode `npx wrangler dev --persist-to C:/tz-dados`.
 
 ```
 src/

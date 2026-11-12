@@ -43,7 +43,7 @@ Quando alguém comprar, você recebe um aviso, confere o Pix no app do banco e c
 2. Vá em [Suas integrações](https://www.mercadopago.com.br/developers/panel/app) → **Criar aplicação** (tipo "Pagamentos online").
 3. Em **Credenciais de produção**, copie o **Access Token** (`APP_USR-...`) e cole no painel.
 4. Em **Webhooks → Configurar notificações**: cole a URL que o painel mostra (`https://SEU-SITE/webhooks/mercadopago`), marque **Pagamentos** e salve. Copie a **assinatura secreta** e cole no painel.
-5. Marque "Pix automático" e/ou "Cartão de crédito" e salve.
+5. Marque "Pix via Mercado Pago" e/ou "Cartão de crédito" e salve.
 
 > Quer testar antes? Use as **credenciais de teste** (`TEST-...`) e os [cartões de teste](https://www.mercadopago.com.br/developers/pt/docs/checkout-pro/additional-content/your-integrations/test/cards) do Mercado Pago.
 

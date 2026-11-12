@@ -8,6 +8,7 @@ export function parseBRL(input: string): number | null {
   if (!clean) return null
   let normalized = clean
   if (clean.includes(',')) normalized = clean.replace(/\./g, '').replace(',', '.')
+  else if (/^\d{1,3}(\.\d{3})+$/.test(clean)) normalized = clean.replace(/\./g, '') // "1.297" = mil duzentos e noventa e sete
   if (!/^\d+(\.\d{1,2})?$/.test(normalized)) return null
   return Math.round(Number(normalized) * 100)
 }

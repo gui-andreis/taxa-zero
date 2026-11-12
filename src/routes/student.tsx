@@ -12,8 +12,9 @@ import { loadCurriculum, origin } from './public'
 
 const app = new Hono<AppEnv>()
 
-function safeNext(next: string | undefined) {
-  return next && next.startsWith('/') && !next.startsWith('//') ? next : '/aluno'
+/** Só aceita caminhos internos. "//site" e "/\\site" o navegador trata como outro site. */
+export function safeNext(next: string | undefined) {
+  return next && /^\/(?![\/\\])/.test(next) && !/[\\\s\x00-\x1f]/.test(next) ? next : '/aluno'
 }
 
 // ───────────── Entrar / sair ─────────────
@@ -258,7 +259,15 @@ app.post('/pedido/:id/reembolso', async (c) => {
   const s = c.get('settings')
   const order = await getOrder(c.env.DB, c.req.param('id'))
   if (!order || order.student_id !== c.get('student')!.id) return c.notFound()
-  if (!canStudentRefund(s, order)) return c.redirect('/aluno?erro=' + encodeURIComponent('O prazo de garantia deste pedido já terminou.'))
+  if (!canStudentRefund(s, order)) {
+    const msg =
+      order.status === 'refund_requested' ? 'Você já pediu o reembolso deste pedido. O vendedor está devolvendo o Pix.'
+      : order.status === 'refunded' ? 'Este pedido já foi reembolsado.'
+      : order.method === 'free' ? 'Este curso foi liberado de graça por cupom, então não há valor para devolver.'
+      : order.status !== 'paid' ? 'Este pedido não pode ser reembolsado.'
+      : 'O prazo de garantia deste pedido já terminou.'
+    return c.redirect('/aluno?erro=' + encodeURIComponent(msg))
+  }
   const err = await refundOrder(c.env, s, origin(c), order, 'student')
   if (err) return c.redirect('/aluno?erro=' + encodeURIComponent(err + ' Fale com o suporte.'))
   return c.redirect('/aluno?ok=1')
@@ -301,10 +310,21 @@ app.get('/curso/:id/aula/:lessonId', async (c) => {
   const next = flat[idx + 1]
 
   let player
+  let speedBar
   if (lesson.video_type === 'r2' && lesson.video_ref) {
     player = (
       <div class="video">
         <video controls preload="metadata" playsinline controlslist="nodownload" src={`/media/v/${lesson.id}`} />
+      </div>
+    )
+    speedBar = (
+      <div class="speed" role="group" aria-label="Velocidade do vídeo">
+        <span class="muted small">Velocidade</span>
+        {['0.75', '1', '1.25', '1.5', '1.75', '2'].map((v) => (
+          <button type="button" class="speed-btn" data-speed={v} aria-pressed={v === '1' ? 'true' : 'false'}>
+            {v.replace('.', ',')}x
+          </button>
+        ))}
       </div>
     )
   } else if (lesson.video_type === 'bunny' && lesson.video_ref) {
@@ -325,6 +345,7 @@ app.get('/curso/:id/aula/:lessonId', async (c) => {
       <div class="wrap player">
         <div class="stack">
           {player}
+          {speedBar}
           <div class="row spread">
             <div>
               <div class="muted small">{course.title}</div>

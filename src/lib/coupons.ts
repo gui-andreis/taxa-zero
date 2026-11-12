@@ -96,7 +96,9 @@ export async function checkCoupon(db: D1Database, rawCode: string, course: Cours
       .first()
     if (used) return { ok: false, error: `Você já usou o cupom ${code}.` }
   }
-  const discount = discountFor(coupon, course.price_cents)
+  let discount = discountFor(coupon, course.price_cents)
+  // Valor mínimo de cobrança é R$ 1,00: um desconto que deixaria centavos fica limitado.
+  if (course.price_cents - discount > 0 && course.price_cents - discount < 100) discount = Math.max(0, course.price_cents - 100)
   return { ok: true, coupon, discount, final: course.price_cents - discount }
 }
 

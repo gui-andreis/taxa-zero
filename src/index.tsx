@@ -30,7 +30,11 @@ app.use('*', async (c, next) => {
     if (reqOrigin && reqOrigin !== self) return c.text('Origem não permitida.', 403)
     if (!reqOrigin) {
       const referer = c.req.header('referer')
-      if (!referer || new URL(referer).origin !== self) return c.text('Origem não permitida.', 403)
+      let refOrigin = ''
+      try {
+        refOrigin = referer ? new URL(referer).origin : ''
+      } catch {}
+      if (refOrigin !== self) return c.text('Origem não permitida.', 403)
     }
   }
   await next()

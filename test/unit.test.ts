@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildPixPayload, crc16, normalizePixKey } from '../src/lib/pix.ts'
+import { buildPixPayload, crc16, isValidPixKey, normalizePixKey } from '../src/lib/pix.ts'
 import { parseBRL, slugify } from '../src/lib/format.ts'
 import { markdown } from '../src/lib/markdown.ts'
 import { hashPassword, verifyPassword } from '../src/lib/crypto.ts'
@@ -69,4 +69,16 @@ test('Pix: celular escrito do jeito comum vira +55', () => {
   assert.equal(normalizePixKey('123.456.789-09'), '12345678909')
   assert.equal(normalizePixKey('+55 11 98765-4321'), '+5511987654321')
   assert.equal(normalizePixKey('Fulano@Exemplo.com'), 'fulano@exemplo.com')
+})
+
+test('chave Pix: aceita formatos válidos e recusa lixo', () => {
+  for (const k of ['ana@exemplo.com', '12345678901', '12345678000199', '+5511987654321', '123e4567-e89b-12d3-a456-426614174000'])
+    assert.ok(isValidPixKey(normalizePixKey(k)), k)
+  for (const k of ['abc', '123', '+1555123', 'ana@', '1234567890123456']) assert.ok(!isValidPixKey(normalizePixKey(k)), k)
+})
+
+test('preço com ponto de milhar e sem centavos', () => {
+  assert.equal(parseBRL('1.297'), 129700)
+  assert.equal(parseBRL('12.500'), 1250000)
+  assert.equal(parseBRL('1.29'), 129)
 })

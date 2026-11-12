@@ -9,7 +9,7 @@ import { emailReady, enabledMethods, saveSettings, SECRET_KEYS } from '../lib/se
 import { getOrder, markPaid, refundOrder } from '../lib/orders'
 import { loadCurriculum, origin } from './public'
 import { registerCoupons } from './admin-coupons'
-import { normalizePixKey } from '../lib/pix'
+import { isValidPixKey, normalizePixKey } from '../lib/pix'
 
 const app = new Hono<AppEnv>()
 type C = Context<AppEnv>
@@ -69,6 +69,9 @@ function SetupPage({ c, error }: { c: C; error?: string }) {
   )
 }
 
+/** Valor de exemplo do .dev.vars.example: público, então não pode valer como senha. */
+const EXAMPLE_SETUP_CODE = 'troque-por-um-codigo-so-seu'
+
 app.get('/setup', async (c) => ((await adminExists(c.env.DB)) ? c.redirect('/admin/entrar') : c.html(<SetupPage c={c} />)))
 
 app.post('/setup', async (c) => {
@@ -76,6 +79,8 @@ app.post('/setup', async (c) => {
   const f = await c.req.parseBody()
   const email = String(f.email ?? '').trim().toLowerCase()
   const password = String(f.password ?? '')
+  if (c.env.SETUP_CODE === EXAMPLE_SETUP_CODE)
+    return c.html(<SetupPage c={c} error="O SETUP_CODE ainda é o do exemplo, que qualquer pessoa conhece. Troque por um código só seu nas variáveis do Worker e tente de novo." />, 403)
   if (c.env.SETUP_CODE) {
     if (await tooManyAttempts(c, 'setup', 'setup')) return c.html(<SetupPage c={c} error="Muitas tentativas. Aguarde 15 minutos." />, 429)
     if (!safeEqual(String(f.code ?? ''), c.env.SETUP_CODE)) return c.html(<SetupPage c={c} error="Código de configuração incorreto." />, 403)
@@ -154,8 +159,9 @@ app.get('/', async (c) => {
   const db = c.env.DB
   const since30 = now() - 30 * DAY
   const [total, last30, students, toConfirm, refunds, courses] = await Promise.all([
-    db.prepare(`SELECT COUNT(*) n, COALESCE(SUM(amount_cents),0) v FROM orders WHERE status = 'paid'`).first<{ n: number; v: number }>(),
-    db.prepare(`SELECT COUNT(*) n, COALESCE(SUM(amount_cents),0) v FROM orders WHERE status = 'paid' AND paid_at > ?`).bind(since30).first<{ n: number; v: number }>(),
+    // Cortesias (cupom 100%) não são vendas: ficam fora do faturamento e da economia.
+    db.prepare(`SELECT COUNT(*) n, COALESCE(SUM(amount_cents),0) v FROM orders WHERE status = 'paid' AND method != 'free'`).first<{ n: number; v: number }>(),
+    db.prepare(`SELECT COUNT(*) n, COALESCE(SUM(amount_cents),0) v FROM orders WHERE status = 'paid' AND method != 'free' AND paid_at > ?`).bind(since30).first<{ n: number; v: number }>(),
     db.prepare(`SELECT COUNT(DISTINCT student_id) n FROM orders WHERE status = 'paid'`).first<{ n: number }>(),
     db.prepare(`SELECT COUNT(*) n FROM orders WHERE status = 'awaiting_confirmation'`).first<{ n: number }>(),
     db.prepare(`SELECT COUNT(*) n FROM orders WHERE status = 'refund_requested'`).first<{ n: number }>(),
@@ -325,6 +331,13 @@ function OrdersTable({ orders, compact }: { orders: (Order & { student_name: str
                         </button>
                       </form>
                     )}
+                    {o.status === 'cancelled' && o.method === 'pix_manual' && (
+                      <form method="post" action={`/admin/pedidos/${o.id}/confirmar`} data-confirm={`Este pedido foi cancelado. Você recebeu mesmo assim ${brl(o.amount_cents)} via Pix com a identificação ${o.id}? O aluno ganha acesso.`}>
+                        <button class="btn ghost sm" type="submit">
+                          Pix chegou? Confirmar
+                        </button>
+                      </form>
+                    )}
                     {o.status === 'refund_requested' && (
                       <form method="post" action={`/admin/pedidos/${o.id}/reembolsar`} data-confirm="Você já devolveu o Pix para o aluno pelo app do banco?">
                         <button class="btn sm" type="submit">
@@ -422,8 +435,17 @@ app.get('/pedidos', async (c) => {
 
 app.post('/pedidos/:id/confirmar', async (c) => {
   const order = await getOrder(c.env.DB, c.req.param('id'))
-  if (order && order.method === 'pix_manual') await markPaid(c.env, c.get('settings'), origin(c), order)
-  return c.redirect('/admin/pedidos?ok=' + encodeURIComponent('Pagamento confirmado. O aluno já tem acesso.'))
+  const back = (kind: 'ok' | 'erro', msg: string) => c.redirect(`/admin/pedidos?${kind}=` + encodeURIComponent(msg))
+  if (!order) return back('erro', 'Pedido não encontrado.')
+  if (order.method !== 'pix_manual') return back('erro', 'Só pedidos de Pix direto são confirmados à mão. Os do Mercado Pago se confirmam sozinhos.')
+  if (order.status === 'paid') return back('ok', 'Este pedido já estava confirmado.')
+  if (!['pending', 'awaiting_confirmation', 'cancelled'].includes(order.status)) return back('erro', 'Este pedido não pode mais ser confirmado.')
+  const other = await c.env.DB.prepare(`SELECT id FROM orders WHERE student_id = ? AND course_id = ? AND status = 'paid' AND id != ?`)
+    .bind(order.student_id, order.course_id, order.id)
+    .first<{ id: string }>()
+  if (other) return back('erro', `Este aluno já tem acesso ao curso pelo pedido ${other.id}. Se o Pix chegou duas vezes, devolva um pelo app do banco e cancele este pedido.`)
+  await markPaid(c.env, c.get('settings'), origin(c), order)
+  return back('ok', 'Pagamento confirmado. O aluno já tem acesso.')
 })
 
 app.post('/pedidos/:id/reembolsar', async (c) => {
@@ -1201,7 +1223,7 @@ app.get('/configuracoes', (c) => {
         </fieldset>
 
         <fieldset>
-          <legend>Mercado Pago (Pix automático e cartão)</legend>
+          <legend>Mercado Pago (Pix com confirmação automática e cartão)</legend>
           <p class="small muted">
             Com o Mercado Pago o acesso é liberado <strong>sozinho</strong>, na hora. Taxas cobradas pelo Mercado Pago (não por nós): ~0,99% no Pix e ~4–5% no cartão. Aceita conta com CPF.
           </p>
@@ -1226,7 +1248,7 @@ app.get('/configuracoes', (c) => {
           <div class="grid g2" style="margin-top:12px">
             <label class="check">
               <input type="checkbox" name="mp_pix_enabled" value="1" checked={s.mp_pix_enabled === '1'} />
-              <span>Pix automático</span>
+              <span>Pix via Mercado Pago (libera sozinho)</span>
             </label>
             <label class="check">
               <input type="checkbox" name="mp_card_enabled" value="1" checked={s.mp_card_enabled === '1'} />
@@ -1319,6 +1341,17 @@ app.post('/configuracoes', async (c) => {
     refund_days: String(Math.min(90, Math.max(7, Number(str('refund_days')) || 7))),
     terms_text: String(f.terms_text ?? ''),
   }
+  const problems: string[] = []
+  if (values.pix_key && !isValidPixKey(values.pix_key)) {
+    problems.push(`A chave Pix "${str('pix_key')}" não parece válida (use e-mail, CPF, CNPJ, celular com DDD ou chave aleatória). A anterior foi mantida.`)
+    delete values.pix_key
+  }
+  if (values.seller_email && !isEmail(values.seller_email)) {
+    problems.push('O e-mail para avisos não é válido. O anterior foi mantido.')
+    delete values.seller_email
+  }
+  const days = Number(str('refund_days'))
+  if (str('refund_days') && days < 7) problems.push('A garantia mínima por lei (CDC) é de 7 dias, então ficou 7.')
   const logo = str('logo_key')
   if (!logo || logo.startsWith('public/')) values.logo_key = logo
   for (const k of SECRET_KEYS) {
@@ -1326,6 +1359,7 @@ app.post('/configuracoes', async (c) => {
     else if (str(k)) values[k] = str(k)
   }
   await saveSettings(c.env.DB, values)
+  if (problems.length) return c.redirect('/admin/configuracoes?erro=' + encodeURIComponent('Salvo, mas: ' + problems.join(' ')))
   return c.redirect('/admin/configuracoes?ok=Configura%C3%A7%C3%B5es+salvas.')
 })
 

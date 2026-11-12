@@ -25,13 +25,19 @@ export function notificationUrl(baseUrl: string) {
 export async function markPaid(env: Bindings, s: Settings, baseUrl: string, order: Order, providerId?: string) {
   const res = await env.DB.prepare(
     `UPDATE orders SET status = 'paid', paid_at = ?, provider_payment_id = COALESCE(?, provider_payment_id)
-     WHERE id = ? AND status IN ('pending', 'awaiting_confirmation')`,
+     WHERE id = ? AND status IN ('pending', 'awaiting_confirmation', 'cancelled')`,
   )
     .bind(now(), providerId ?? null, order.id)
     .run()
-  if (!res.meta.changes) return
+  if (!res.meta.changes) return false
+  // Outros pedidos em aberto do mesmo aluno para o mesmo curso não fazem mais sentido.
+  await env.DB.prepare(
+    `UPDATE orders SET status = 'cancelled' WHERE student_id = ? AND course_id = ? AND id != ? AND status IN ('pending', 'awaiting_confirmation')`,
+  )
+    .bind(order.student_id, order.course_id, order.id)
+    .run()
   const [course, student] = await Promise.all([getCourse(env.DB, order.course_id), getStudent(env.DB, order.student_id)])
-  if (!course || !student) return
+  if (!course || !student) return true
   await Promise.all([
     sendEmail(
       s,
@@ -68,7 +74,8 @@ export async function applyMpPayment(env: Bindings, s: Settings, baseUrl: string
   if (p.currency_id !== 'BRL' || Math.round(p.transaction_amount * 100) < order.amount_cents) return
   switch (p.status) {
     case 'approved':
-      if (order.status === 'pending' || order.status === 'awaiting_confirmation') await markPaid(env, s, baseUrl, order, String(p.id))
+      // Também vale para pedido cancelado: se o Mercado Pago aprovou, o dinheiro entrou.
+      if (['pending', 'awaiting_confirmation', 'cancelled'].includes(order.status)) await markPaid(env, s, baseUrl, order, String(p.id))
       break
     case 'refunded':
       if (order.status !== 'refunded') await setStatus(env, order.id, 'refunded', `, refunded_at = ${now()}`)
